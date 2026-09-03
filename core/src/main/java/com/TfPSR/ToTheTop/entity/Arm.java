@@ -38,6 +38,12 @@ public class Arm {
     private final Vector2 velocityError = new Vector2();
     private final Vector2 controlForce = new Vector2();
 
+    private ArmState state = ArmState.FREE;
+
+    private Body contactedSurface;
+    private Vector2 contactPoint;
+    private RevoluteJoint gripJoint;
+
     public Arm(Vector2 position, Vector2 size, float angle, BodyDef.BodyType type, World world, float weight, float friction, float restitution, short groupIndex, Sides side) {
 
         Vector2 armSize = new Vector2(size.x, size.y * ARM_HEIGHT_RATIO);
@@ -103,6 +109,70 @@ public class Arm {
         sprite.setRotation((float) Math.toDegrees(body.getAngle()));
     }
 
+    public void setSurfaceContact(Body surface, Vector2 point) {
+        contactedSurface = surface;
+        contactPoint = new Vector2(point);
+    }
+
+    public void clearSurfaceContact(Body surface) {
+        if (contactedSurface == surface && state == ArmState.FREE) {
+            contactedSurface = null;
+            contactPoint = null;
+        }
+    }
+
+    public void updateSurfaceContact(Body surface, Vector2 point) {
+        if (state == ArmState.FREE && contactedSurface == surface) {
+            contactPoint.set(point);
+        }
+    }
+
+    public void grab(World world) {
+        if (state == ArmState.GRABBING) {
+            return;
+        }
+
+        if (contactedSurface == null || contactPoint == null) {
+            return;
+        }
+
+        Vector2 localHandPoint =
+            hand.getLocalPoint(contactPoint);
+
+        Vector2 localSurfacePoint =
+            contactedSurface.getLocalPoint(contactPoint);
+
+        System.out.println("Contact world: " + contactPoint);
+        System.out.println("Surface body position: " + contactedSurface.getPosition());
+        System.out.println("Surface local anchor: " + localSurfacePoint);
+        System.out.println(
+            "Local -> World: " +
+                contactedSurface.getWorldPoint(localSurfacePoint)
+        );
+
+        gripJoint = JointFactory.createRevoluteJoint(
+            hand,
+            contactedSurface,
+            false,
+            localHandPoint,
+            localSurfacePoint,
+            world
+        );
+
+        state = ArmState.GRABBING;
+    }
+
+    public void release(World world) {
+        if (state != ArmState.GRABBING) {
+            return;
+        }
+
+        world.destroyJoint(gripJoint);
+
+        gripJoint = null;
+        state = ArmState.FREE;
+    }
+
     public void draw(Batch batch) {
         syncSpriteToBody(spriteUpperArm, upperArm);
         syncSpriteToBody(spriteForearm, forearm);
@@ -122,6 +192,10 @@ public class Arm {
     }
 
     public Vector2 update(Vector2 mouseVelocity) {
+        if (state == ArmState.GRABBING) {
+            return new Vector2();
+        }
+
         targetVelocity.set(mouseVelocity).scl(MOUSE_SENSITIVITY);
 
         velocityError

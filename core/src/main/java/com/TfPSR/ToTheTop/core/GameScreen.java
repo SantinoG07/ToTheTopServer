@@ -135,6 +135,14 @@ public class GameScreen extends ScreenAdapter {
         return new Vector2(velocityX, velocityY);
     }
 
+    public void leftMouseReleased() {
+        player.onLeftMouseReleased();
+    }
+
+    public void rightMouseReleased() {
+        player.onRightMouseReleased();
+    }
+
     public boolean isPaused(){
         return paused;
     }

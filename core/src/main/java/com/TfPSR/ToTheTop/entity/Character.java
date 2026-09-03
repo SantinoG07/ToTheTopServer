@@ -140,6 +140,22 @@ public class Character {
         spriteTorso.draw(batch);
     }
 
+    public void onLeftMouseReleased() {
+        leftArm.grab(world);
+    }
+
+    public void onRightMouseReleased() {
+        rightArm.grab(world);
+    }
+
+    public void releaseLeftHand() {
+        leftArm.release(world);
+    }
+
+    public void releaseRightHand() {
+        rightArm.release(world);
+    }
+
 
     public void update(Vector2 mouseVelocity, boolean leftMousePressed, boolean rightMousePressed) {
         if (leftMousePressed) {

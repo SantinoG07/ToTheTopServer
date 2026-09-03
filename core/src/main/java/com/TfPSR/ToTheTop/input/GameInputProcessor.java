@@ -37,11 +37,13 @@ public class GameInputProcessor extends InputAdapter {
 
         if (button == Input.Buttons.LEFT) {
             leftMousePressed = false;
+            gameScreen.leftMouseReleased();
             return true;
         }
 
         if (button == Input.Buttons.RIGHT) {
             rightMousePressed = false;
+            gameScreen.rightMouseReleased();
             return true;
         }
 
