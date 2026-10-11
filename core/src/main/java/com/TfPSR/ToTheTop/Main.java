@@ -2,6 +2,7 @@ package com.TfPSR.ToTheTop;
 
 import com.TfPSR.ToTheTop.asset.AssetService;
 import com.TfPSR.ToTheTop.menus.LoadMenu;
+import com.TfPSR.ToTheTop.network.ThreadServer;
 import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.assets.loaders.resolvers.InternalFileHandleResolver;
@@ -26,12 +27,17 @@ public class Main extends Game { //We use Game, because it has better methods of
     private Viewport viewport;
     private AssetService assetService;
 
+
+    private ThreadServer ts;
+
     @Override
     public void create() {
         this.batch = new SpriteBatch();
         this.camera = new OrthographicCamera();
         this.viewport = new FitViewport(MAX_WIDTH, MAX_HEIGHT, camera);
         this.assetService = new AssetService(new InternalFileHandleResolver());
+        ts = new ThreadServer();
+        ts.start();
 
         addScreen(new LoadMenu(this, assetService));
         setScreen(LoadMenu.class);
