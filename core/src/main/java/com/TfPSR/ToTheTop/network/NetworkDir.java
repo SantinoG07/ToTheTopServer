@@ -1,15 +1,16 @@
 package com.TfPSR.ToTheTop.network;
 
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 
 public class NetworkDir {
     private InetAddress ip;
     private int port;
+    private boolean ready;
 
     public NetworkDir(InetAddress ip, int port) {
         this.ip = ip;
-        this.port= port;
+        this.port = port;
+        this.ready = false;
     }
 
     public InetAddress getIp() {
@@ -18,5 +19,13 @@ public class NetworkDir {
 
     public int getPort() {
         return port;
+    }
+
+    public boolean isReady() {
+        return ready;
+    }
+
+    public void setReady(boolean ready) {
+        this.ready = ready;
     }
 }

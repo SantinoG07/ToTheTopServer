@@ -64,6 +64,8 @@ public class Main extends Game { //We use Game, because it has better methods of
 
     @Override
     public void dispose() {
+        if (ts != null)
+            ts.shutdown();
         screenCache.values().forEach(Screen::dispose);
         screenCache.clear();
         this.batch.dispose();
