@@ -12,7 +12,7 @@ public class ThreadServer extends Thread {
     private volatile boolean running = true;
     private final NetworkDir[] clients = new NetworkDir[MAX_CLIENTS];
     private int currentClients = 0;
-    private boolean started = false;   // una vez en partida ya no se admiten cambios
+    private volatile boolean started = false;   // una vez en partida ya no se admiten cambios
 
     public ThreadServer() {
         try {
@@ -21,6 +21,11 @@ public class ThreadServer extends Thread {
             e.printStackTrace();
             throw new IllegalStateException("No se pudo abrir el puerto 6767", e);
         }
+    }
+
+    /** True once the match started, so the server can switch to the players' screen. */
+    public boolean hasStarted() {
+        return started;
     }
 
     private void send(byte[] data, InetAddress ip, int port) throws IOException {

@@ -4,6 +4,7 @@ import com.TfPSR.ToTheTop.asset.AssetService;
 import com.TfPSR.ToTheTop.menus.LoadMenu;
 import com.TfPSR.ToTheTop.network.ThreadServer;
 import com.badlogic.gdx.Game;
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.assets.loaders.resolvers.InternalFileHandleResolver;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -36,11 +37,30 @@ public class Main extends Game { //We use Game, because it has better methods of
         this.camera = new OrthographicCamera();
         this.viewport = new FitViewport(MAX_WIDTH, MAX_HEIGHT, camera);
         this.assetService = new AssetService(new InternalFileHandleResolver());
-        ts = new ThreadServer();
-        ts.start();
 
         addScreen(new LoadMenu(this, assetService));
         setScreen(LoadMenu.class);
+    }
+
+    /** Starts the server from the menu button. Returns false if the port is already taken. */
+    public boolean startServer() {
+        if (this.ts != null) {
+            return true;
+        }
+        try {
+            this.ts = new ThreadServer();
+        } catch (IllegalStateException e) {
+            this.ts = null;
+            Gdx.app.error("Main", "No se pudo abrir el puerto del servidor", e);
+            return false;
+        }
+        this.ts.start();
+        return true;
+    }
+
+    /** True once the server accepted enough ready players and the match began. */
+    public boolean isMatchStarted() {
+        return this.ts != null && this.ts.hasStarted();
     }
 
     @Override

@@ -1,30 +1,31 @@
 package com.TfPSR.ToTheTop.menus;
 
-import com.TfPSR.ToTheTop.core.GameScreen;
 import com.TfPSR.ToTheTop.Main;
 import com.TfPSR.ToTheTop.asset.AssetService;
 import com.TfPSR.ToTheTop.asset.MusicAsset;
 import com.TfPSR.ToTheTop.asset.TextureAsset;
+import com.TfPSR.ToTheTop.core.GameScreen;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.ScreenAdapter;
-import com.badlogic.gdx.graphics.*;
-import com.badlogic.gdx.graphics.g2d.Batch;
-import com.badlogic.gdx.graphics.g2d.BitmapFont;
-import com.badlogic.gdx.graphics.g2d.NinePatch;
-import com.badlogic.gdx.scenes.scene2d.Actor;
-import com.badlogic.gdx.scenes.scene2d.ui.*;
-import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.audio.Music;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.Touchable;
+import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.ui.Table;
+import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
-import com.badlogic.gdx.scenes.scene2d.utils.NinePatchDrawable;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
-import com.badlogic.gdx.audio.Music;
-import com.badlogic.gdx.graphics.Pixmap;
-import com.badlogic.gdx.graphics.Color;
-import org.w3c.dom.Text;
 
+/**
+ * Server menu: a single power button. As soon as the match starts, the server
+ * switches to the screen the players see.
+ */
 public class MainMenu extends ScreenAdapter {
     private final Main game;
     private final AssetService assetService;
@@ -34,18 +35,12 @@ public class MainMenu extends ScreenAdapter {
     private final OrthographicCamera camera;
     private final Batch batch;
     private final Stage stage;
-    private final TextButton singlePlayerButton;
-    private final TextButton multipPlayerButton;
-    private final TextButton settingsButton;
-    private final TextButton howToPlayButton;
-    private final TextButton exitButton;
     private final Skin skin;
     private final Table tablePlay;
-    private final Table settingsTable;
     private final SettingsMenu settingsMenu;
-    private final HowToPlayMenu howToPlayMenu;
+    private final TextButton powerButton;
 
-    public MainMenu(Main game, AssetService assetService, SettingsMenu settingsMenu){
+    public MainMenu(Main game, AssetService assetService, SettingsMenu settingsMenu) {
         this.game = game;
         this.viewport = game.getViewport();
         this.assetService = assetService;
@@ -57,108 +52,61 @@ public class MainMenu extends ScreenAdapter {
         this.stage = new Stage(new ScreenViewport());
         this.skin = assetService.getSkin();
         this.tablePlay = new Table();
-        this.settingsTable = new Table();
         this.settingsMenu = settingsMenu;
-        this.howToPlayMenu = new HowToPlayMenu(assetService);
 
-        this.singlePlayerButton = new TextButton("Singleplayer",skin);
-        this.multipPlayerButton = new TextButton("Multiplayer", skin);
-        this.settingsButton = new TextButton("Settings", skin);
-        this.howToPlayButton = new TextButton("How to Play", skin);
-        this.exitButton = new TextButton("Exit", skin);
-
-        singlePlayerButton.addListener(new ChangeListener() {
+        this.powerButton = new TextButton("Encender", this.skin);
+        this.powerButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                game.addScreen(new GameScreen(game, assetService, settingsMenu));
-                game.setScreen(GameScreen.class);
+                if (MainMenu.this.game.startServer()) {
+                    MainMenu.this.powerButton.setDisabled(true);
+                    MainMenu.this.powerButton.setTouchable(Touchable.disabled);
+                }
             }
         });
 
-
-        multipPlayerButton.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-//              game.addScreen(new GameScreen(game, assetService));
-//              game.setScreen(GameScreen.class);
-              System.out.println("Modalidad no implementada");
-            }
-        });
-
-        settingsButton.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                settingsMenu.open(stage);
-            }
-        });
-
-        howToPlayButton.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                howToPlayMenu.open(stage);
-            }
-        });
-
-        exitButton.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                Gdx.app.exit();
-            }
-        });
-
-        tablePlay.setFillParent(true);
-        stage.addActor(tablePlay);
-
-        tablePlay.add(singlePlayerButton).width(250).height(60).padTop(600);
-
-        tablePlay.add(multipPlayerButton).width(250).height(60).padLeft(100).padTop(600);
-
-        tablePlay.row();
-        tablePlay.add(howToPlayButton).width(250).height(60).padTop(20).colspan(2);
-
-        settingsTable.setFillParent(true);
-        stage.addActor(settingsTable);
-        settingsTable.top().right();
-        settingsTable.add(settingsButton).width(250).height(60).padRight(30).padTop(20);
-        settingsTable.row();
-        settingsTable.add(exitButton).width(250).height(60).padRight(30).padTop(10);
+        this.tablePlay.setFillParent(true);
+        this.stage.addActor(this.tablePlay);
+        this.tablePlay.add(this.powerButton).width(250).height(60);
     }
 
     @Override
     public void show() {
         Gdx.input.setCursorCatched(false);
-        assetService.getAudioManager().playMusic(mainMenuMusic);
-        Gdx.input.setInputProcessor(stage);
-        camera.position.set(viewport.getWorldWidth() / 2f, viewport.getWorldHeight() / 2f, 0);
-        camera.zoom = 1f;
-        camera.update();
+        assetService.getAudioManager().playMusic(this.mainMenuMusic);
+        Gdx.input.setInputProcessor(this.stage);
+        this.camera.position.set(this.viewport.getWorldWidth() / 2f, this.viewport.getWorldHeight() / 2f, 0);
+        this.camera.zoom = 1f;
+        this.camera.update();
     }
 
     @Override
-    public void render(float delta){
+    public void render(float delta) {
         Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-        camera.update();
-        batch.setProjectionMatrix(camera.combined);
+        this.camera.update();
+        this.batch.setProjectionMatrix(this.camera.combined);
 
-        batch.begin();
-        batch.draw(mainMenuImage, 0, 0, viewport.getWorldWidth(), viewport.getWorldHeight() );
-        batch.end();
+        this.batch.begin();
+        this.batch.draw(this.mainMenuImage, 0, 0, this.viewport.getWorldWidth(), this.viewport.getWorldHeight());
+        this.batch.end();
 
-        stage.act(delta);
-        stage.draw();
+        this.stage.act(delta);
+        this.stage.draw();
 
-        settingsMenu.drawSettingsMenu(delta);
-        howToPlayMenu.drawHowToPlayMenu(delta);
+        if (this.game.isMatchStarted()) {
+            this.game.addScreen(new GameScreen(this.game, this.assetService, this.settingsMenu));
+            this.game.setScreen(GameScreen.class);
+        }
     }
 
     @Override
-    public void resize(int width, int height){
-        stage.getViewport().update(width, height, true);
+    public void resize(int width, int height) {
+        this.stage.getViewport().update(width, height, true);
     }
 
     @Override
-    public void hide(){
-        mainMenuMusic.stop();
+    public void hide() {
+        this.mainMenuMusic.stop();
     }
 }
