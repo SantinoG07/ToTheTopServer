@@ -140,27 +140,13 @@ public class GameScreen extends ScreenAdapter {
     }
 
     public void pauseGame(){
-        if(paused)
-            return;
-
-        inputProcessor.resetMouseButtons();
         paused = true;
         pauseMenu.open();
     }
 
     public void resumeGame(){
-        if(!paused)
-            return;
-
         paused = false;
+        Gdx.input.setInputProcessor(inputMultiplexer);
         pauseMenu.close();
-    }
-
-    @Override
-    public void resize(int width, int height){
-        viewport.update(width, height);
-
-        pauseMenu.resize(width, height);
-        settingsMenu.resize(width, height);
     }
 }
