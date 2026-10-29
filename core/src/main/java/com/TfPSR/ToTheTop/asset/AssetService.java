@@ -1,5 +1,6 @@
 package com.TfPSR.ToTheTop.asset;
 
+import com.TfPSR.ToTheTop.menus.UiSoundEvent;
 import com.badlogic.gdx.assets.AssetManager;
 import com.badlogic.gdx.assets.loaders.FileHandleResolver;
 import com.badlogic.gdx.graphics.Color;
@@ -12,6 +13,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.NinePatchDrawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Disposable;
@@ -20,11 +22,13 @@ public class AssetService implements Disposable {
     private final AssetManager assetManager;
     private final Skin skin;
     private final AudioManager audioManager;
+    private final UiSoundEvent uiSoundEvent;
 
     public AssetService(FileHandleResolver fileHandleResolver) {
         this.assetManager = new AssetManager(fileHandleResolver);
         this.skin = new Skin();
         this.audioManager = new AudioManager();
+        this.uiSoundEvent = new UiSoundEvent();
 
         int size = 20, borderThickness = 2;
         Pixmap pixmapButton = new Pixmap(size, size, Pixmap.Format.RGB888);
@@ -82,6 +86,18 @@ public class AssetService implements Disposable {
         labelStyle.fontColor = Color.WHITE;
 
         skin.add("defaultLabelStyle", labelStyle);
+
+        Pixmap pixmapBackground = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+        pixmapBackground.setColor(Color.WHITE);
+        pixmapBackground.fill();
+
+        Texture textureBackground = new Texture(pixmapBackground);
+        TextureRegion textureRegionBackground = new TextureRegion(textureBackground);
+        TextureRegionDrawable backgroundDrwabable = new TextureRegionDrawable(textureRegionBackground);
+        skin.add("white",  backgroundDrwabable, Drawable.class);
+
+        pixmapBackground.dispose();
+
     }
 
 
@@ -117,5 +133,9 @@ public class AssetService implements Disposable {
 
     public AudioManager getAudioManager() {
         return audioManager;
+    }
+
+    public UiSoundEvent getUiSoundEvent(){
+        return uiSoundEvent;
     }
 }

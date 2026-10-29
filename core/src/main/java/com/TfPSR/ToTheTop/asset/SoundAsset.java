@@ -4,7 +4,10 @@ import com.badlogic.gdx.assets.AssetDescriptor;
 import com.badlogic.gdx.audio.Sound;
 
 public enum SoundAsset implements Asset<Sound>{
-    DASH("dash.wav");
+    DASH("dash.wav"),
+    HOVER("hover.wav"),
+    SLIDER("slider.wav"),
+    CLICK_BUTTON("clickButton.wav");
 
     private final AssetDescriptor<Sound> descriptor;
 

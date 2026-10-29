@@ -19,6 +19,9 @@ public class GameInputProcessor extends InputAdapter {
     @Override
     public boolean touchDown(int screenX, int screenY, int pointer, int button) {
 
+        if(gameScreen.isPaused())
+            return false;
+
         if (button == Input.Buttons.LEFT) {
             leftMousePressed = true;
             return true;
@@ -34,6 +37,9 @@ public class GameInputProcessor extends InputAdapter {
 
     @Override
     public boolean touchUp(int screenX, int screenY, int pointer, int button) {
+
+       if(gameScreen.isPaused())
+           return false;
 
         if (button == Input.Buttons.LEFT) {
             leftMousePressed = false;
@@ -62,14 +68,21 @@ public class GameInputProcessor extends InputAdapter {
     }
 
     @Override
-    public boolean keyDown(int keycode){
-        if(keycode == Input.Keys.ESCAPE){
-            gameScreen.pauseGame();
+    public boolean keyDown(int keycode) {
+        if (keycode == Input.Keys.ESCAPE) {
+            if (gameScreen.isPaused()) {
+                gameScreen.resumeGame();
+            } else {
+                gameScreen.pauseGame();
+            }
             return true;
         }
 
-        if(gameScreen.isPaused())
-            return true;
-        return true;
+        return false;
+    }
+
+    public void resetMouseButtons() {
+        leftMousePressed = false;
+        rightMousePressed = false;
     }
 }

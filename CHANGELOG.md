@@ -5,6 +5,32 @@ The format is based on Keep a Changelog, and this project adheres
 to Semantic Versioning.
 
 ---
+## [0.7.0] - 2026-10-08
+
+### Added
+
+* Added hover sound effects to the menu buttons.
+* Added a sound effect when releasing the sound-effects volume slider.
+* Added `UiSoundEvent` to attach sound listeners to buttons and sliders.
+* Added hover and slider sound assets.
+* Added UI viewport size constants.
+* Added sound effect on clicking buttons.
+* Added backgroundOverlay on pause menu and settings menu
+
+### Changed
+
+* Restricted menu button clicks to the left mouse button.
+
+### Fixed
+
+* Fixed the pause and settings menus not adapting to window resizes.
+* Fixed the pause menu not closing touching esc key
+
+### Removed
+
+* Removed the unused default `libgdx.png` asset.
+
+---
 
 ## [0.6.0] - 2026-09-04
 
