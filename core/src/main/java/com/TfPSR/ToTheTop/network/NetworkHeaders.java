@@ -8,6 +8,7 @@ public final class NetworkHeaders {
     public static final byte READY = 0x02;
     public static final byte UNREADY = 0x03;
     public static final byte DISCONNECT = 0x04;
+    public static final byte INPUT = 0x05;
     public static final byte ACCEPT = 0x11;
     public static final byte REJECT = 0x12;
     public static final byte ROSTER = 0x13;

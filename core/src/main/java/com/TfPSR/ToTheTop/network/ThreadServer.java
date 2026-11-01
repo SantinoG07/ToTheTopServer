@@ -11,8 +11,7 @@ public class ThreadServer extends Thread {
     private final DatagramSocket conection;
     private volatile boolean running = true;
     private final NetworkDir[] clients = new NetworkDir[MAX_CLIENTS];
-    private int currentClients = 0;
-    private volatile boolean started = false;   // una vez en partida ya no se admiten cambios
+    private volatile int currentClients = 0;    private volatile boolean started = false;   // una vez en partida ya no se admiten cambios
 
     public ThreadServer() {
         try {
@@ -26,6 +25,17 @@ public class ThreadServer extends Thread {
     /** True once the match started, so the server can switch to the players' screen. */
     public boolean hasStarted() {
         return started;
+    }
+
+    /**
+     * Last input decoded for the client in that slot, or {@code null} if the slot
+     * is unknown or never sent one. Meant for observation and tests.
+     */
+    public InputState getClientInput(int slot) {
+        if (slot < 0 || slot >= currentClients)
+            return null;
+        NetworkDir client = clients[slot];
+        return client == null ? null : client.getLastInput();
     }
 
     private void send(byte[] data, InetAddress ip, int port) throws IOException {
@@ -64,7 +74,26 @@ public class ThreadServer extends Thread {
             case NetworkHeaders.READY -> handleReady(dp, true);
             case NetworkHeaders.UNREADY -> handleReady(dp, false);
             case NetworkHeaders.DISCONNECT -> handleDesconectar(dp);
+            case NetworkHeaders.INPUT -> handleInput(dp);
         }
+    }
+
+    /**
+     * Stores the last input of a connected client. Nothing is simulated yet: the
+     * packet is validated, decoded and handed to the slot.
+     */
+    private void handleInput(DatagramPacket dp) {
+        int slot = findClient(dp);
+        if (slot == -1)
+            return;
+
+        InputState input = InputPacket.decode(dp.getData(), dp.getOffset(), dp.getLength());
+        if (input == null) {
+            System.out.println("Input invalido del slot " + slot);
+            return;
+        }
+
+        clients[slot].setLastInput(input);
     }
 
     private void handleConexion(DatagramPacket dp) throws IOException {
