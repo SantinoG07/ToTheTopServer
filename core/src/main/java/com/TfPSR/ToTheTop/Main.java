@@ -63,6 +63,11 @@ public class Main extends Game { //We use Game, because it has better methods of
         return this.ts != null && this.ts.hasStarted();
     }
 
+    /** Players connected to the running server, or 0 when it was never started. */
+    public int getPlayerCount() {
+        return this.ts == null ? 0 : this.ts.getPlayerCount();
+    }
+
     @Override
     public void resize(int width, int height) {
         super.resize(width, height);

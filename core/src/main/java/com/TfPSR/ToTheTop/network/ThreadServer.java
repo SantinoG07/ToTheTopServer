@@ -11,7 +11,8 @@ public class ThreadServer extends Thread {
     private final DatagramSocket conection;
     private volatile boolean running = true;
     private final NetworkDir[] clients = new NetworkDir[MAX_CLIENTS];
-    private volatile int currentClients = 0;    private volatile boolean started = false;   // una vez en partida ya no se admiten cambios
+    private volatile int currentClients = 0;
+    private volatile boolean started = false;   // una vez en partida ya no se admiten cambios
 
     public ThreadServer() {
         try {
@@ -25,6 +26,11 @@ public class ThreadServer extends Thread {
     /** True once the match started, so the server can switch to the players' screen. */
     public boolean hasStarted() {
         return started;
+    }
+
+    /** Number of clients currently connected, one player each. */
+    public int getPlayerCount() {
+        return currentClients;
     }
 
     /**

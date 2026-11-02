@@ -21,19 +21,22 @@ import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
-import com.badlogic.gdx.utils.viewport.Viewport;
 
 public class GameScreen extends ScreenAdapter {
     private final Vector2 GRAVEDAD = new Vector2(0, -9.8f);
 
+    private static final Vector2 CHARACTER_SIZE = new Vector2(0.6f, 1.80f);
+    private static final float CHARACTER_WEIGHT = 80f;
+    private static final float SPAWN_SPACING = 3f;
+    private static final float CAMERA_ZOOM = 1.5f;
+
     private final Main game;
-    private final Viewport viewport;
     private final OrthographicCamera camera;
     private final Batch batch;
 
     private final World world;
     private final Box2DDebugRenderer debugRenderer;
-    private final Character player;
+    private final Character[] players;
 
     private final GameMap map;
     private final OrthogonalTiledMapRenderer mapRenderer;
@@ -51,7 +54,6 @@ public class GameScreen extends ScreenAdapter {
 
     public GameScreen(Main game, AssetService assetService, SettingsMenu settingsMenu) {
         this.game = game;
-        this.viewport = game.getViewport();
         this.camera = game.getCamera();
         this.batch = game.getBatch();
         this.assetService = assetService;
@@ -69,7 +71,7 @@ public class GameScreen extends ScreenAdapter {
 
         rocks = new Rocks(map.getSurfaceObjects(), world);
 
-        player = new Character( map.getPlayerSpawn(), new Vector2(0.6f, 1.80f), 80f, world);
+        players = createPlayers(game.getPlayerCount());
 
         inputProcessor = new GameInputProcessor(this);
         inputMultiplexer.addProcessor(pauseMenu.getStage());
@@ -77,6 +79,30 @@ public class GameScreen extends ScreenAdapter {
         Gdx.input.setInputProcessor(inputMultiplexer);
 
         Gdx.input.setCursorCatched(true);
+    }
+
+    /**
+     * Builds one character per connected player, spread evenly around the map
+     * spawn so both are visible on screen. The physics of every character lives
+     * in the server because it will be the authority for the networked match.
+     */
+    private Character[] createPlayers(int playerCount) {
+        int count = Math.max(1, playerCount);
+        Vector2 spawn = map.getPlayerSpawn();
+        Character[] created = new Character[count];
+
+        for (int i = 0; i < count; i++) {
+            float offsetX = (i - (count - 1) / 2f) * SPAWN_SPACING;
+            Vector2 position = new Vector2(spawn.x + offsetX, spawn.y);
+            created[i] = new Character(position, new Vector2(CHARACTER_SIZE), CHARACTER_WEIGHT, world);
+        }
+
+        return created;
+    }
+
+    /** How many characters this screen is simulating. */
+    public int getPlayerCount() {
+        return players.length;
     }
 
     @Override
@@ -98,7 +124,8 @@ public class GameScreen extends ScreenAdapter {
         mapRenderer.setView(camera);
         mapRenderer.render();
         batch.begin();
-        player.draw(batch);
+        for (Character player : players)
+            player.draw(batch);
 
         batch.setProjectionMatrix(camera.combined);
         debugRenderer.render(world, camera.combined);
@@ -113,34 +140,43 @@ public class GameScreen extends ScreenAdapter {
     }
 
     private void update(float delta) {
-        camera.position.set(player.getPosition().x, player.getPosition().y, 0);
-        camera.zoom = 1.5f;
-        camera.update();
+        centerCameraOnPlayers();
 
-        Vector2 mouseVelocity = getMouseVelocity(delta);
-        player.update(mouseVelocity, inputProcessor.isLeftMousePressed(), inputProcessor.isRightMousePressed());
+        // No local input is applied yet: the server only receives the players'
+        // input packets, so the characters are stepped with no force at all.
+        for (Character player : players)
+            player.update(Vector2.Zero, false, false);
 
         world.step(delta, 10, 4);
     }
 
-    private Vector2 getMouseVelocity(float delta) {
-        Vector2 mouseDelta = inputProcessor.getMouseDelta();
+    /** Keeps the camera on the midpoint of every player so all of them are visible. */
+    private void centerCameraOnPlayers() {
+        Vector2 first = players[0].getPosition();
+        float minX = first.x;
+        float maxX = first.x;
+        float minY = first.y;
+        float maxY = first.y;
 
-        float worldWidth = viewport.getWorldWidth() * camera.zoom;
-        float worldHeight = viewport.getWorldHeight() * camera.zoom;
+        for (int i = 1; i < players.length; i++) {
+            Vector2 position = players[i].getPosition();
+            minX = Math.min(minX, position.x);
+            maxX = Math.max(maxX, position.x);
+            minY = Math.min(minY, position.y);
+            maxY = Math.max(maxY, position.y);
+        }
 
-        float velocityX = (mouseDelta.x / viewport.getScreenWidth()) * worldWidth / delta;
-        float velocityY = -(mouseDelta.y / viewport.getScreenHeight()) * worldHeight / delta;
-
-        return new Vector2(velocityX, velocityY);
+        camera.position.set((minX + maxX) / 2f, (minY + maxY) / 2f, 0);
+        camera.zoom = CAMERA_ZOOM;
+        camera.update();
     }
 
+    // The server window must not drive a character with its own mouse. Grabbing
+    // will be applied from the networked input instead.
     public void leftMouseReleased() {
-        player.onLeftMouseReleased();
     }
 
     public void rightMouseReleased() {
-        player.onRightMouseReleased();
     }
 
     public boolean isPaused(){
