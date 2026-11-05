@@ -37,10 +37,9 @@ public class MainMenu extends ScreenAdapter {
     private final Stage stage;
     private final Skin skin;
     private final Table tablePlay;
-    private final SettingsMenu settingsMenu;
     private final TextButton powerButton;
 
-    public MainMenu(Main game, AssetService assetService, SettingsMenu settingsMenu) {
+    public MainMenu(Main game, AssetService assetService) {
         this.game = game;
         this.viewport = game.getViewport();
         this.assetService = assetService;
@@ -52,7 +51,6 @@ public class MainMenu extends ScreenAdapter {
         this.stage = new Stage(new ScreenViewport());
         this.skin = assetService.getSkin();
         this.tablePlay = new Table();
-        this.settingsMenu = settingsMenu;
 
         this.powerButton = new TextButton("Encender", this.skin);
         this.powerButton.addListener(new ChangeListener() {
@@ -95,7 +93,7 @@ public class MainMenu extends ScreenAdapter {
         this.stage.draw();
 
         if (this.game.isMatchStarted()) {
-            this.game.addScreen(new GameScreen(this.game, this.assetService, this.settingsMenu));
+            this.game.addScreen(new GameScreen(this.game, this.assetService));
             this.game.setScreen(GameScreen.class);
         }
     }

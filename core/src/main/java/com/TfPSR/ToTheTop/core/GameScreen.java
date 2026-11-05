@@ -4,19 +4,15 @@ import com.TfPSR.ToTheTop.*;
 import com.TfPSR.ToTheTop.asset.AssetService;
 import com.TfPSR.ToTheTop.asset.SoundAsset;
 import com.TfPSR.ToTheTop.entity.Character;
-import com.TfPSR.ToTheTop.input.GameInputProcessor;
 import com.TfPSR.ToTheTop.map.GameMap;
 import com.TfPSR.ToTheTop.map.Rocks;
-import com.TfPSR.ToTheTop.menus.SettingsMenu;
 import com.TfPSR.ToTheTop.network.InputState;
 import com.TfPSR.ToTheTop.network.PartState;
 import com.TfPSR.ToTheTop.network.PlayerState;
 import com.TfPSR.ToTheTop.network.StatePacket;
 import com.TfPSR.ToTheTop.network.ThreadServer;
 import com.TfPSR.ToTheTop.physics.GameContactListener;
-import com.TfPSR.ToTheTop.menus.PauseMenu;
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.GL20;
@@ -51,11 +47,9 @@ public class GameScreen extends ScreenAdapter {
 
     private final AssetService assetService;
     private final Sound dash;
-    private final InputMultiplexer inputMultiplexer;
 
     private final Rocks rocks;
 
-    private final GameInputProcessor inputProcessor;
     private final ThreadServer server;
 
     /** Previous pointer and buttons of every slot, to derive velocity and edges. */
@@ -66,20 +60,14 @@ public class GameScreen extends ScreenAdapter {
     private final boolean[] previousRightButton;
 
     private float accumulator = 0f;
-    private boolean paused = false;
-    private final SettingsMenu settingsMenu;
-    private final PauseMenu pauseMenu;
 
-    public GameScreen(Main game, AssetService assetService, SettingsMenu settingsMenu) {
+    public GameScreen(Main game, AssetService assetService) {
         this.game = game;
         this.camera = game.getCamera();
         this.batch = game.getBatch();
         this.assetService = assetService;
         this.dash = assetService.get(SoundAsset.DASH);
-        this.inputMultiplexer = new InputMultiplexer();
         this.server = game.getServer();
-        this.settingsMenu = settingsMenu;
-        this.pauseMenu = new PauseMenu(assetService, game, this, settingsMenu);
 
         this.debugRenderer = new Box2DDebugRenderer();
         map = new GameMap("maps/map.tmx");
@@ -97,13 +85,6 @@ public class GameScreen extends ScreenAdapter {
         hasPointer = new boolean[players.length];
         previousLeftButton = new boolean[players.length];
         previousRightButton = new boolean[players.length];
-
-        inputProcessor = new GameInputProcessor(this);
-        inputMultiplexer.addProcessor(pauseMenu.getStage());
-        inputMultiplexer.addProcessor(inputProcessor);
-        Gdx.input.setInputProcessor(inputMultiplexer);
-
-        Gdx.input.setCursorCatched(true);
     }
 
     /**
@@ -135,14 +116,8 @@ public class GameScreen extends ScreenAdapter {
         Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        if(!paused)
-            update(delta);
-
+        update(delta);
         draw();
-    }
-
-    public InputMultiplexer getInputMultiplexer() {
-        return inputMultiplexer;
     }
 
     private void draw() {
@@ -155,13 +130,6 @@ public class GameScreen extends ScreenAdapter {
         batch.setProjectionMatrix(camera.combined);
         debugRenderer.render(world, camera.combined);
         batch.end();
-
-        if (paused) {
-            pauseMenu.getStage().act(Gdx.graphics.getDeltaTime());
-            pauseMenu.getStage().draw();
-
-            settingsMenu.drawSettingsMenu(Gdx.graphics.getDeltaTime());
-        }
     }
 
     /**
@@ -279,28 +247,5 @@ public class GameScreen extends ScreenAdapter {
         camera.position.set((minX + maxX) / 2f, (minY + maxY) / 2f, 0);
         camera.zoom = CAMERA_ZOOM;
         camera.update();
-    }
-
-    // The server window must not drive a character with its own mouse. Grabbing
-    // will be applied from the networked input instead.
-    public void leftMouseReleased() {
-    }
-
-    public void rightMouseReleased() {
-    }
-
-    public boolean isPaused(){
-        return paused;
-    }
-
-    public void pauseGame(){
-        paused = true;
-        pauseMenu.open();
-    }
-
-    public void resumeGame(){
-        paused = false;
-        Gdx.input.setInputProcessor(inputMultiplexer);
-        pauseMenu.close();
     }
 }

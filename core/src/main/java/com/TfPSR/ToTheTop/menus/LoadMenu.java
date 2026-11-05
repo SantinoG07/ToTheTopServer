@@ -12,12 +12,10 @@ public class LoadMenu extends ScreenAdapter {
     private final AssetService assetService;
     private final Main game;
     private ShapeRenderer shapeRenderer;
-    private final SettingsMenu settingsMenu;
 
     public LoadMenu(Main game, AssetService assetService) {
         this.game = game;
         this.assetService = assetService;
-        this.settingsMenu = new SettingsMenu(assetService);
     }
 
    @Override
@@ -40,7 +38,7 @@ public class LoadMenu extends ScreenAdapter {
     @Override
     public void render(float delta) {
         if(this.assetService.update()){
-            game.addScreen(new MainMenu(game, assetService, settingsMenu));
+            game.addScreen(new MainMenu(game, assetService));
             game.setScreen(MainMenu.class);
         }else{
 
