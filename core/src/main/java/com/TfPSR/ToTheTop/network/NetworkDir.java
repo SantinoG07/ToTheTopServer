@@ -5,13 +5,20 @@ import java.net.InetAddress;
 public class NetworkDir {
     private InetAddress ip;
     private int port;
+    private final int session;
     private boolean ready;
     private volatile InputState lastInput;
 
-    public NetworkDir(InetAddress ip, int port) {
+    public NetworkDir(InetAddress ip, int port, int session) {
         this.ip = ip;
         this.port = port;
+        this.session = session;
         this.ready = false;
+    }
+
+    /** Id the server assigned to this client; every message after CONNECT echoes it. */
+    public int getSession() {
+        return session;
     }
 
     public InetAddress getIp() {

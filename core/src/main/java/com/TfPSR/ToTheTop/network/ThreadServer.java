@@ -13,6 +13,7 @@ public class ThreadServer extends Thread {
     private final NetworkDir[] clients = new NetworkDir[MAX_CLIENTS];
     private volatile int currentClients = 0;
     private volatile boolean started = false;   // una vez en partida ya no se admiten cambios
+    private int nextSession = 1;                // ids de 1 a 255, nunca 0
 
     public ThreadServer() {
         try {
@@ -74,9 +75,6 @@ public class ThreadServer extends Thread {
         conection.send(packet);
     }
 
-    private void sendHeader(byte header, InetAddress ip, int port) throws IOException {
-        send(new byte[]{header}, ip, port);
-    }
 
     @Override
     public void run() {
@@ -122,6 +120,11 @@ public class ThreadServer extends Thread {
         if (slot == -1)
             return;
 
+        // A message whose session does not match the connection is dropped: a
+        // stray or spoofed datagram must never reach the simulation.
+        if (readSession(dp) != clients[slot].getSession())
+            return;
+
         InputState input = InputPacket.decode(dp.getData(), dp.getOffset(), dp.getLength());
         if (input == null) {
             System.out.println("Input invalido del slot " + slot);
@@ -141,26 +144,34 @@ public class ThreadServer extends Thread {
     }
 
     private void handleConexion(DatagramPacket dp) throws IOException {
+        if (!hasCurrentVersion(dp)) {
+            sendReject(dp, NetworkHeaders.REJECT_VERSION);
+            return;
+        }
+
         int slot = findClient(dp);
 
         if (slot == -1) {
             if (started) {
                 // la partida ya arranco: no se incorporan jugadores nuevos
-                sendHeader(NetworkHeaders.REJECT, dp.getAddress(), dp.getPort());
+                sendReject(dp, NetworkHeaders.REJECT_STARTED);
                 return;
             }
             slot = firstFreeSlot();
             if (slot < 0) {
                 // server lleno
-                sendHeader(NetworkHeaders.REJECT, dp.getAddress(), dp.getPort());
+                sendReject(dp, NetworkHeaders.REJECT_FULL);
                 return;
             }
-            clients[slot] = new NetworkDir(dp.getAddress(), dp.getPort());
+            int session = nextSession();
+            clients[slot] = new NetworkDir(dp.getAddress(), dp.getPort(), session);
             currentClients++;
-            System.out.println("Cliente conectado en slot " + slot + " (" + dp.getAddress() + ":" + dp.getPort() + ")");
+            System.out.println("Cliente conectado en slot " + slot + " sesion " + session
+                    + " (" + dp.getAddress() + ":" + dp.getPort() + ")");
         }
 
-        send(new byte[]{NetworkHeaders.ACCEPT, (byte) slot}, dp.getAddress(), dp.getPort());
+        send(new byte[]{NetworkHeaders.ACCEPT, ProtocolVersion.CURRENT,
+                (byte) clients[slot].getSession(), (byte) slot}, dp.getAddress(), dp.getPort());
 
         broadcastRoster();
 
@@ -170,6 +181,9 @@ public class ThreadServer extends Thread {
     private void handleReady(DatagramPacket dp, boolean ready) throws IOException {
         int slot = findClient(dp);
         if (slot == -1 || started)
+            return;
+
+        if (readSession(dp) != clients[slot].getSession())
             return;
 
         clients[slot].setReady(ready);
@@ -182,6 +196,9 @@ public class ThreadServer extends Thread {
     private void handleDesconectar(DatagramPacket dp) throws IOException {
         int slot = findClient(dp);
         if (slot == -1)
+            return;
+
+        if (readSession(dp) != clients[slot].getSession())
             return;
 
         System.out.println("Cliente desconectado del slot " + slot + " (" + dp.getAddress() + ":" + dp.getPort() + ")");
@@ -198,7 +215,17 @@ public class ThreadServer extends Thread {
         }
         started = true;
         System.out.println("Partida iniciada con " + currentClients + " jugadores");
-        broadcast(NetworkHeaders.START);
+        broadcastStart();
+    }
+
+    /** START carries the session of each recipient, so it is sent one by one. */
+    private void broadcastStart() throws IOException {
+        for (NetworkDir client : clients) {
+            if (client == null)
+                continue;
+            send(new byte[]{NetworkHeaders.START, ProtocolVersion.CURRENT,
+                    (byte) client.getSession()}, client.getIp(), client.getPort());
+        }
     }
 
     private void broadcastRoster() throws IOException {
@@ -207,7 +234,8 @@ public class ThreadServer extends Thread {
             if (client != null && client.isReady())
                 readyCount++;
         }
-        broadcast(new byte[]{NetworkHeaders.ROSTER, (byte) currentClients, (byte) readyCount});
+        broadcast(new byte[]{NetworkHeaders.ROSTER, ProtocolVersion.CURRENT,
+                (byte) currentClients, (byte) readyCount});
     }
 
     private int findClient(DatagramPacket dp) {
@@ -221,9 +249,35 @@ public class ThreadServer extends Thread {
         return -1;
     }
 
+    /** True when the datagram carries the protocol version this server speaks. */
+    private boolean hasCurrentVersion(DatagramPacket dp) {
+        return dp.getLength() >= 2 && dp.getData()[dp.getOffset() + 1] == ProtocolVersion.CURRENT;
+    }
+
+    /**
+     * Session byte of a client message, or -1 when it is too short or was
+     * written by another protocol version. Callers drop the packet.
+     */
+    private int readSession(DatagramPacket dp) {
+        if (!hasCurrentVersion(dp) || dp.getLength() < 3)
+            return -1;
+        return dp.getData()[dp.getOffset() + 2] & 0xFF;
+    }
+
+    /** Fresh session id, never zero, wrapping after 255. */
+    private int nextSession() {
+        int session = nextSession;
+        nextSession = nextSession >= 255 ? 1 : nextSession + 1;
+        return session;
+    }
+
+    private void sendReject(DatagramPacket dp, byte reason) throws IOException {
+        send(new byte[]{NetworkHeaders.REJECT, ProtocolVersion.CURRENT, reason},
+                dp.getAddress(), dp.getPort());
+    }
+
     /** Lowest free slot, so a client that leaves frees its index for a new one. */
-    private int firstFreeSlot() {
-        for (int i = 0; i < MAX_CLIENTS; i++) {
+    private int firstFreeSlot() {        for (int i = 0; i < MAX_CLIENTS; i++) {
             if (clients[i] == null)
                 return i;
         }
@@ -240,13 +294,6 @@ public class ThreadServer extends Thread {
             return;
         clients[slot] = null;
         currentClients--;
-    }
-
-    private void broadcast(byte header) throws IOException {
-        for (NetworkDir client : clients) {
-            if (client != null)
-                sendHeader(header, client.getIp(), client.getPort());
-        }
     }
 
     private void broadcast(byte[] data) throws IOException {

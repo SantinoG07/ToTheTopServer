@@ -5,13 +5,15 @@ import java.nio.ByteBuffer;
 /**
  * Wire format of a player input packet, mirroring the client encoder.
  *
- * Layout (13 bytes): header, protocol version, float mouseX, float mouseY,
- * button mask, key mask, event mask. Coordinates are world meters, not screen
- * pixels. Event bits are transient: the client repeats them for a few ticks.
+ * Layout (14 bytes): header, protocol version, session, float mouseX, float
+ * mouseY, button mask, key mask, event mask. Coordinates are world meters, not
+ * screen pixels. Event bits are transient: the client repeats them for a few
+ * ticks. The session is validated by the caller against the connection before
+ * decoding the rest.
  */
 public final class InputPacket {
 
-    public static final int SIZE = 13;
+    public static final int SIZE = 14;
 
     public static final int BUTTON_LEFT = 1;
     public static final int BUTTON_RIGHT = 1 << 1;
@@ -45,6 +47,8 @@ public final class InputPacket {
             return null;
         if (buffer.get() != ProtocolVersion.CURRENT)
             return null;
+
+        buffer.get();   // session: the server already validated it against the connection
 
         float mouseX = buffer.getFloat();
         float mouseY = buffer.getFloat();
