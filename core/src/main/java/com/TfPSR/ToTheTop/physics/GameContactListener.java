@@ -1,6 +1,7 @@
 package com.TfPSR.ToTheTop.physics;
 
 import com.TfPSR.ToTheTop.entity.Arm;
+import com.TfPSR.ToTheTop.entity.Character;
 import com.TfPSR.ToTheTop.map.Rocks;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
@@ -10,6 +11,12 @@ public class GameContactListener implements ContactListener {
 
     @Override
     public void beginContact(Contact contact) {
+        Character supported = getCharacter(contact);
+        if (supported != null && getSurface(contact) != null) {
+            supported.addSupport();
+            return;
+        }
+
         Arm arm = getArm(contact);
         Body surface = getSurface(contact);
 
@@ -25,6 +32,12 @@ public class GameContactListener implements ContactListener {
 
     @Override
     public void endContact(Contact contact) {
+        Character supported = getCharacter(contact);
+        if (supported != null && getSurface(contact) != null) {
+            supported.removeSupport();
+            return;
+        }
+
         Arm arm = getArm(contact);
         Body surface = getSurface(contact);
 
@@ -35,8 +48,21 @@ public class GameContactListener implements ContactListener {
         arm.clearSurfaceContact(surface);
     }
 
-    private Arm getArm(Contact contact) {
+    /** The character whose leg touches the contact, or null for other bodies. */
+    private Character getCharacter(Contact contact) {
         Object dataA = contact.getFixtureA().getBody().getUserData();
+        Object dataB = contact.getFixtureB().getBody().getUserData();
+
+        if (dataA instanceof Character character)
+            return character;
+
+        if (dataB instanceof Character character)
+            return character;
+
+        return null;
+    }
+
+    private Arm getArm(Contact contact) {        Object dataA = contact.getFixtureA().getBody().getUserData();
         Object dataB = contact.getFixtureB().getBody().getUserData();
 
         if(dataA instanceof Arm) {

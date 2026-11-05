@@ -5,18 +5,25 @@ import java.nio.ByteBuffer;
 /**
  * Wire format of a player input packet, mirroring the client encoder.
  *
- * Layout (12 bytes): header, protocol version, float mouseX, float mouseY,
- * button mask, key mask. Coordinates are world meters, not screen pixels.
+ * Layout (13 bytes): header, protocol version, float mouseX, float mouseY,
+ * button mask, key mask, event mask. Coordinates are world meters, not screen
+ * pixels. Event bits are transient: the client repeats them for a few ticks.
  */
 public final class InputPacket {
 
-    public static final int SIZE = 12;
+    public static final int SIZE = 13;
 
     public static final int BUTTON_LEFT = 1;
     public static final int BUTTON_RIGHT = 1 << 1;
 
     public static final int KEY_A = 1;
     public static final int KEY_D = 1 << 1;
+
+    /** One-off events: the client repeats each bit for a few ticks. */
+    public static final int EVENT_IMPULSE = 1;
+    public static final int EVENT_PAUSE = 1 << 1;
+    public static final int EVENT_RESUME = 1 << 2;
+    public static final int EVENT_LEAVE = 1 << 3;
 
     private InputPacket() {
     }
@@ -43,6 +50,7 @@ public final class InputPacket {
         float mouseY = buffer.getFloat();
         byte buttons = buffer.get();
         byte keys = buffer.get();
+        byte events = buffer.get();
 
         return new InputState(
                 mouseX,
@@ -50,6 +58,7 @@ public final class InputPacket {
                 (buttons & BUTTON_LEFT) != 0,
                 (buttons & BUTTON_RIGHT) != 0,
                 (keys & KEY_A) != 0,
-                (keys & KEY_D) != 0);
+                (keys & KEY_D) != 0,
+                events & 0xFF);
     }
 }

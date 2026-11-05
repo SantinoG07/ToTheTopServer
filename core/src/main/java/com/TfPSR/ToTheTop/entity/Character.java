@@ -42,6 +42,9 @@ public class Character {
     /** Lateral push applied to the torso by A/D while a hand is gripping. */
     private static final float SWING_FORCE = 400f;
 
+    /** Vertical take-off speed of the impulse of wiki 3.7.4, in m/s. */
+    private static final float IMPULSE_SPEED = 2.2f;
+
     private final World world;
 
     Vector2 position;
@@ -54,6 +57,9 @@ public class Character {
     private final Body rightLeg;
 
     private final short groupIndex = -1;
+
+    /** Leg contacts with a surface; above zero the character is standing on one. */
+    private int supportContacts;
 
     /** The ten simulated bodies, in the order the state packet sends them. */
     private final Body[] parts;
@@ -96,6 +102,11 @@ public class Character {
         this.rightArm = new Arm(rightArmPosition, armsSize, 0, BodyDef.BodyType.DynamicBody, world, armsDensity, 1f, 0, groupIndex, Sides.RIGHT);
         this.leftLeg = ShapeFactory.createRectangle(leftLegPosition, legsSize, 0, BodyDef.BodyType.DynamicBody, world, legsDensity, 1f, 0, false, groupIndex);
         this.rightLeg = ShapeFactory.createRectangle(rightLegPosition, legsSize, 0, BodyDef.BodyType.DynamicBody, world, legsDensity, 1f, 0, false, groupIndex);
+
+        // The contact listener identifies the legs of this character by their
+        // user data, to know whether it is resting on a surface.
+        leftLeg.setUserData(this);
+        rightLeg.setUserData(this);
 
         Vector2 torsoNeckAnchor = new Vector2(0, (torsoSize.y / 2));
         Vector2 headNeckAnchor = new Vector2(0, - (headSize.y / 2));
@@ -144,6 +155,41 @@ public class Character {
     /** True while either hand is latched to a surface. */
     public boolean isGripping() {
         return leftArm.isGrabbing() || rightArm.isGrabbing();
+    }
+
+    /** Called by the contact listener when a leg starts touching a surface. */
+    public void addSupport() {
+        supportContacts++;
+    }
+
+    /** Called by the contact listener when a leg stops touching a surface. */
+    public void removeSupport() {
+        if (supportContacts > 0)
+            supportContacts--;
+    }
+
+    /**
+     * True while a leg rests on a surface. Hanging from a hand is not resting,
+     * and neither is falling, so the impulse is refused in both cases.
+     */
+    public boolean isResting() {
+        return supportContacts > 0;
+    }
+
+    /**
+     * Wiki 3.7.4: a small jump, driven from the torso. It is only allowed while
+     * the character rests on a surface, never while hanging or falling.
+     *
+     * @return true when the impulse was applied
+     */
+    public boolean impulse() {
+        if (!isResting() || isGripping())
+            return false;
+
+        Vector2 center = torso.getWorldCenter();
+        torso.applyLinearImpulse(0f, IMPULSE_SPEED * torso.getMass(),
+                center.x, center.y, true);
+        return true;
     }
 
 
