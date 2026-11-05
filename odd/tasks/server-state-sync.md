@@ -81,16 +81,20 @@ so the client can parse one fixed shape instead of reshaping the packet later.
 
 ## Tasks
 
-| ID | Task | Specs | Route | Status |
-| --- | --- | --- | --- | --- |
-| T1 | Freeze the contract in this document | S6, S7 | inline | done |
-| T2 | `StatePacket`, `PlayerState`, `PartState` + `NetworkHeaders.STATE` | S1, S6, S7 | inline | pending |
-| T3 | `Character` exposes its 10 bodies and the grip state of both hands | S3 | inline | pending |
-| T4 | Fixed 60 Hz accumulator in `GameScreen` | S2 | inline | pending |
-| T5 | Broadcast the encoded state every fixed step | S1, S6 | inline | pending |
-| T6 | Each character consumes its slot input: pointer velocity, held buttons, grab on release | S3 | inline | pending |
-| T7 | Ignore `INPUT` before `started` | S4 | inline | pending |
-| T8 | Remove the empty `Server` class | S5 | inline | pending |
+| ID | Task | Specs | Route | Status | Commit |
+| --- | --- | --- | --- | --- | --- |
+| T1 | Freeze the contract in this document | S6, S7 | inline | done | `21ff307` |
+| T2 | `StatePacket`, `PlayerState`, `PartState` + `NetworkHeaders.STATE` | S1, S6, S7 | inline | done | `055e903` |
+| T3 | `Character` exposes its 10 bodies and the grip state of both hands | S3 | inline | done | `7bdf962` |
+| T4 | Fixed 60 Hz accumulator in `GameScreen` | S2 | inline | done | `8108a03` |
+| T5 | Broadcast the encoded state every fixed step | S1, S6 | inline | done | `8108a03` |
+| T6 | Each character consumes its slot input: pointer velocity, held buttons, grab on release | S3 | inline | done | `8108a03` |
+| T7 | Ignore `INPUT` before `started` | S4 | inline | done | `8544209` |
+| T8 | Remove the empty `Server` class | S5 | inline | done | `ed5f3e4` |
+
+T4, T5 and T6 share one commit: the fixed tick, the broadcast and the input
+consumption live in the same loop and cannot be verified apart. The packet layout
+was verified on its own against a hand-decoded buffer.
 
 ## Log
 
@@ -106,3 +110,16 @@ so the client can parse one fixed shape instead of reshaping the packet later.
   `ToTheTop-Server`, the tasks above are exactly those dependencies.
 - **L3**: no test source set exists, so each task is verified with a probe that
   exercises the real classes or the real UDP server.
+- **L4** (evidence): the encoder was checked against a hand-decoded
+  `ByteBuffer` (offsets, size, grip and flag bits, empty input returns `null`).
+  The gate for `INPUT` before `START` was checked headlessly: stored input is
+  `null` before `START` and present afterwards. The whole pipeline was checked
+  against the running window: 2 clients connected and readied, 359 `STATE`
+  datagrams in 5.95 s (60.3 Hz), 252 bytes each, slots 0 and 1 with 10 parts,
+  heads 3.00 m apart, no trailing bytes, and the character of the slot that
+  received clicks fell over, which proves the stored input reaches the physics
+  (`Arm.grab()` also ran on the grab release).
+- **L5** (open, needs a decision): mid-match `removeSlot` still reindexes the
+  slot array, so a disconnect misroutes the remaining players' inputs and breaks
+  the slot byte each client cached. That is open decision 5 of the TODO and was
+  left untouched on purpose, but the state sender makes it visible.
