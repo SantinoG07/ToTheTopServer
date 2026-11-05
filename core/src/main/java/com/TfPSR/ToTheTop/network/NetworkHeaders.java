@@ -13,4 +13,5 @@ public final class NetworkHeaders {
     public static final byte REJECT = 0x12;
     public static final byte ROSTER = 0x13;
     public static final byte START = 0x14;
+    public static final byte STATE = 0x15;
 }
