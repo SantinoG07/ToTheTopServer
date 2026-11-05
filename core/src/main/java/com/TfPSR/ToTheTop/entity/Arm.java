@@ -213,8 +213,17 @@ public class Arm {
         return controlForce;
     }
 
+    public Body getForearm() {
+        return forearm;
+    }
+
     public Body getHand() {
         return hand;
+    }
+
+    /** True while the hand is held to the surface it grabbed. */
+    public boolean isGrabbing() {
+        return state == ArmState.GRABBING;
     }
 }
 

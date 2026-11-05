@@ -52,6 +52,9 @@ public class Character {
 
     private final short groupIndex = -1;
 
+    /** The ten simulated bodies, in the order the state packet sends them. */
+    private final Body[] parts;
+
     public Character(Vector2 position, Vector2 size, float weight, World world) {
         this.position = position;
 
@@ -109,6 +112,30 @@ public class Character {
         this.spriteTorso= createBodyPartSprite(torsoSize.x, torsoSize.y, "sprites/torso.png");
         this.spriteLeftLeg= createBodyPartSprite(legsSize.x, legsSize.y, "sprites/leg.png");
         this.spriteRightLeg= createBodyPartSprite(legsSize.x, legsSize.y, "sprites/leg.png");
+
+        // Order fixed by the state packet contract: head, torso, then each arm
+        // top to bottom, then the legs. The client depends on it.
+        this.parts = new Body[]{
+            head,
+            torso,
+            leftArm.getUpperArm(), leftArm.getForearm(), leftArm.getHand(),
+            rightArm.getUpperArm(), rightArm.getForearm(), rightArm.getHand(),
+            leftLeg,
+            rightLeg
+        };
+    }
+
+    /** The ten simulated bodies, in the order the state packet sends them. */
+    public Body[] getParts() {
+        return parts;
+    }
+
+    public boolean isLeftHandGripping() {
+        return leftArm.isGrabbing();
+    }
+
+    public boolean isRightHandGripping() {
+        return rightArm.isGrabbing();
     }
 
 
