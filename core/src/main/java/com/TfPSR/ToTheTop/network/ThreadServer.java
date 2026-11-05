@@ -104,6 +104,10 @@ public class ThreadServer extends Thread {
      * packet is validated, decoded and handed to the slot.
      */
     private void handleInput(DatagramPacket dp) {
+        // Input only means something once the match is running.
+        if (!started)
+            return;
+
         int slot = findClient(dp);
         if (slot == -1)
             return;
