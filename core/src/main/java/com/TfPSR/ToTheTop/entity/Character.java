@@ -39,6 +39,9 @@ public class Character {
 
     private static final float LEG_MASS_RATIO = 0.15f;
 
+    /** Lateral push applied to the torso by A/D while a hand is gripping. */
+    private static final float SWING_FORCE = 400f;
+
     private final World world;
 
     Vector2 position;
@@ -138,6 +141,11 @@ public class Character {
         return rightArm.isGrabbing();
     }
 
+    /** True while either hand is latched to a surface. */
+    public boolean isGripping() {
+        return leftArm.isGrabbing() || rightArm.isGrabbing();
+    }
+
 
     private Sprite createBodyPartSprite(float width, float height, String spritePath) {
         Texture texture = new Texture(Gdx.files.internal(spritePath));
@@ -184,13 +192,23 @@ public class Character {
     }
 
 
-    public void update(Vector2 mouseVelocity, boolean leftMousePressed, boolean rightMousePressed) {
+    public void update(Vector2 mouseVelocity, boolean leftMousePressed, boolean rightMousePressed,
+                       boolean swingLeft, boolean swingRight) {
         if (leftMousePressed) {
             applyInternalArmForce(leftArm, mouseVelocity);
         }
 
         if (rightMousePressed) {
             applyInternalArmForce(rightArm, mouseVelocity);
+        }
+
+        // Wiki 3.7.5: A/D push the torso sideways, and only while a hand holds
+        // a surface. Both keys cancel out.
+        if (swingLeft || swingRight) {
+            if (isGripping()) {
+                float direction = (swingRight ? 1f : 0f) - (swingLeft ? 1f : 0f);
+                torso.applyForceToCenter(direction * SWING_FORCE, 0, true);
+            }
         }
     }
 

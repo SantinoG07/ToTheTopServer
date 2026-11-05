@@ -166,7 +166,7 @@ public class GameScreen extends ScreenAdapter {
     private void applyInput(int slot, Character player, float delta) {
         InputState input = server == null ? null : server.getClientInput(slot);
         if (input == null) {
-            player.update(Vector2.Zero, false, false);
+            player.update(Vector2.Zero, false, false, false, false);
             return;
         }
 
@@ -181,7 +181,7 @@ public class GameScreen extends ScreenAdapter {
         previousLeftButton[slot] = input.left();
         previousRightButton[slot] = input.right();
 
-        player.update(pointerVelocity, input.left(), input.right());
+        player.update(pointerVelocity, input.left(), input.right(), input.a(), input.d());
     }
 
     /** Pointer speed in world meters per second from one input to the next. */
