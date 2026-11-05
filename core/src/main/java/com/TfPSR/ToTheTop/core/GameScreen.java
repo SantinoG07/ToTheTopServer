@@ -26,6 +26,7 @@ import com.badlogic.gdx.physics.box2d.*;
 public class GameScreen extends ScreenAdapter {
     private final Vector2 GRAVEDAD = new Vector2(0, -9.8f);
 
+    private static final int MAX_PLAYERS = 4;
     private static final Vector2 CHARACTER_SIZE = new Vector2(0.6f, 1.80f);
     private static final float CHARACTER_WEIGHT = 80f;
     private static final float SPAWN_SPACING = 3f;
@@ -85,31 +86,35 @@ public class GameScreen extends ScreenAdapter {
 
         rocks = new Rocks(map.getSurfaceObjects(), world);
 
-        players = createPlayers(game.getPlayerCount());
+        players = createPlayers();
 
-        previousPointerX = new float[players.length];
-        previousPointerY = new float[players.length];
-        hasPointer = new boolean[players.length];
-        previousLeftButton = new boolean[players.length];
-        previousRightButton = new boolean[players.length];
-        previousEvents = new int[players.length];
-        paused = new boolean[players.length];
+        previousPointerX = new float[MAX_PLAYERS];
+        previousPointerY = new float[MAX_PLAYERS];
+        hasPointer = new boolean[MAX_PLAYERS];
+        previousLeftButton = new boolean[MAX_PLAYERS];
+        previousRightButton = new boolean[MAX_PLAYERS];
+        previousEvents = new int[MAX_PLAYERS];
+        paused = new boolean[MAX_PLAYERS];
     }
 
     /**
-     * Builds one character per connected player, spread evenly around the map
-     * spawn so both are visible on screen. The physics of every character lives
-     * in the server because it will be the authority for the networked match.
+     * Builds one character per occupied slot. The index of the array is the
+     * slot the server assigned, so a player keeps its identity for the whole
+     * match even if somebody else leaves.
      */
-    private Character[] createPlayers(int playerCount) {
-        int count = Math.max(1, playerCount);
+    private Character[] createPlayers() {
         Vector2 spawn = map.getPlayerSpawn();
-        Character[] created = new Character[count];
+        Character[] created = new Character[MAX_PLAYERS];
+        if (server == null)
+            return created;
 
-        for (int i = 0; i < count; i++) {
-            float offsetX = (i - (count - 1) / 2f) * SPAWN_SPACING;
+        for (int slot = 0; slot < MAX_PLAYERS; slot++) {
+            if (!server.isSlotOccupied(slot))
+                continue;
+
+            float offsetX = (slot - (MAX_PLAYERS - 1) / 2f) * SPAWN_SPACING;
             Vector2 position = new Vector2(spawn.x + offsetX, spawn.y);
-            created[i] = new Character(position, new Vector2(CHARACTER_SIZE), CHARACTER_WEIGHT, world);
+            created[slot] = new Character(position, new Vector2(CHARACTER_SIZE), CHARACTER_WEIGHT, world);
         }
 
         return created;
@@ -117,7 +122,12 @@ public class GameScreen extends ScreenAdapter {
 
     /** How many characters this screen is simulating. */
     public int getPlayerCount() {
-        return players.length;
+        int count = 0;
+        for (Character player : players) {
+            if (player != null)
+                count++;
+        }
+        return count;
     }
 
     @Override
@@ -158,8 +168,23 @@ public class GameScreen extends ScreenAdapter {
     }
 
     private void step(float delta) {
-        for (int slot = 0; slot < players.length; slot++)
-            applyInput(slot, players[slot], delta);
+        for (int slot = 0; slot < players.length; slot++) {
+            Character player = players[slot];
+            if (player == null)
+                continue;
+
+            // A slot that is no longer occupied left the match: its body must
+            // stop existing, or it would keep colliding with the others.
+            if (server != null && !server.isSlotOccupied(slot)) {
+                player.dispose();
+                players[slot] = null;
+                paused[slot] = false;
+                previousEvents[slot] = 0;
+                continue;
+            }
+
+            applyInput(slot, player, delta);
+        }
 
         world.step(delta, 10, 4);
 
@@ -238,14 +263,17 @@ public class GameScreen extends ScreenAdapter {
         return new Vector2(velocityX, velocityY);
     }
 
-    /** Broadcasts the bodies of every player as one STATE datagram. */
+    /** Broadcasts the bodies of every connected player as one STATE datagram. */
     private void sendState() {
         if (server == null)
             return;
 
-        PlayerState[] snapshot = new PlayerState[players.length];
-        for (int i = 0; i < players.length; i++)
-            snapshot[i] = toPlayerState(i, players[i]);
+        PlayerState[] snapshot = new PlayerState[getPlayerCount()];
+        int index = 0;
+        for (int slot = 0; slot < players.length; slot++) {
+            if (players[slot] != null)
+                snapshot[index++] = toPlayerState(slot, players[slot]);
+        }
 
         server.broadcastState(StatePacket.encode(snapshot, StatePacket.MATCH_RUNNING));
     }
@@ -266,21 +294,31 @@ public class GameScreen extends ScreenAdapter {
 
     /** Keeps the camera on the midpoint of every player so all of them are visible. */
     private void centerCameraOnPlayers() {
-        Vector2 first = players[0].getPosition();
-        float minX = first.x;
-        float maxX = first.x;
-        float minY = first.y;
-        float maxY = first.y;
+        boolean found = false;
+        float minX = 0, maxX = 0, minY = 0, maxY = 0;
 
-        for (int i = 1; i < players.length; i++) {
-            Vector2 position = players[i].getPosition();
-            minX = Math.min(minX, position.x);
-            maxX = Math.max(maxX, position.x);
-            minY = Math.min(minY, position.y);
-            maxY = Math.max(maxY, position.y);
+        for (Character player : players) {
+            if (player == null)
+                continue;
+
+            Vector2 position = player.getPosition();
+            if (!found) {
+                minX = maxX = position.x;
+                minY = maxY = position.y;
+                found = true;
+            } else {
+                minX = Math.min(minX, position.x);
+                maxX = Math.max(maxX, position.x);
+                minY = Math.min(minY, position.y);
+                maxY = Math.max(maxY, position.y);
+            }
         }
 
-        camera.position.set((minX + maxX) / 2f, (minY + maxY) / 2f, 0);
+        if (!found)
+            camera.position.set(map.getPlayerSpawn().x, map.getPlayerSpawn().y, 0);
+        else
+            camera.position.set((minX + maxX) / 2f, (minY + maxY) / 2f, 0);
+
         camera.zoom = CAMERA_ZOOM;
         camera.update();
     }

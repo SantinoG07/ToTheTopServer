@@ -33,6 +33,16 @@ public class ThreadServer extends Thread {
         return currentClients;
     }
 
+    /** Highest slot index the server can assign; slots never move once given. */
+    public int getMaxClients() {
+        return MAX_CLIENTS;
+    }
+
+    /** True while that slot still belongs to a connected client. */
+    public boolean isSlotOccupied(int slot) {
+        return slot >= 0 && slot < MAX_CLIENTS && clients[slot] != null;
+    }
+
     /**
      * Sends one encoded match state to every connected client. A client that
      * cannot be reached must never interrupt the simulation, so failures are
@@ -53,7 +63,7 @@ public class ThreadServer extends Thread {
      * is unknown or never sent one. Meant for observation and tests.
      */
     public InputState getClientInput(int slot) {
-        if (slot < 0 || slot >= currentClients)
+        if (slot < 0 || slot >= MAX_CLIENTS)
             return null;
         NetworkDir client = clients[slot];
         return client == null ? null : client.getLastInput();
@@ -103,7 +113,7 @@ public class ThreadServer extends Thread {
      * Stores the last input of a connected client. Nothing is simulated yet: the
      * packet is validated, decoded and handed to the slot.
      */
-    private void handleInput(DatagramPacket dp) {
+    private void handleInput(DatagramPacket dp) throws IOException {
         // Input only means something once the match is running.
         if (!started)
             return;
@@ -115,6 +125,15 @@ public class ThreadServer extends Thread {
         InputState input = InputPacket.decode(dp.getData(), dp.getOffset(), dp.getLength());
         if (input == null) {
             System.out.println("Input invalido del slot " + slot);
+            return;
+        }
+
+        // Leaving is one more event of the input packet: the client stops
+        // sending and its slot is freed for the rest of the match.
+        if ((input.events() & InputPacket.EVENT_LEAVE) != 0) {
+            System.out.println("Cliente abandono la partida en el slot " + slot);
+            removeSlot(slot);
+            broadcastRoster();
             return;
         }
 
@@ -130,13 +149,14 @@ public class ThreadServer extends Thread {
                 sendHeader(NetworkHeaders.REJECT, dp.getAddress(), dp.getPort());
                 return;
             }
-            if (currentClients >= MAX_CLIENTS) {
+            slot = firstFreeSlot();
+            if (slot < 0) {
                 // server lleno
                 sendHeader(NetworkHeaders.REJECT, dp.getAddress(), dp.getPort());
                 return;
             }
-            slot = currentClients++;
             clients[slot] = new NetworkDir(dp.getAddress(), dp.getPort());
+            currentClients++;
             System.out.println("Cliente conectado en slot " + slot + " (" + dp.getAddress() + ":" + dp.getPort() + ")");
         }
 
@@ -172,8 +192,8 @@ public class ThreadServer extends Thread {
     private void checkStart() throws IOException {
         if (started || currentClients < MIN_CLIENTS)
             return;
-        for (int i = 0; i < currentClients; i++) {
-            if (!clients[i].isReady())
+        for (NetworkDir client : clients) {
+            if (client != null && !client.isReady())
                 return;
         }
         started = true;
@@ -183,15 +203,15 @@ public class ThreadServer extends Thread {
 
     private void broadcastRoster() throws IOException {
         int readyCount = 0;
-        for (int i = 0; i < currentClients; i++) {
-            if (clients[i].isReady())
+        for (NetworkDir client : clients) {
+            if (client != null && client.isReady())
                 readyCount++;
         }
         broadcast(new byte[]{NetworkHeaders.ROSTER, (byte) currentClients, (byte) readyCount});
     }
 
     private int findClient(DatagramPacket dp) {
-        for (int i = 0; i < currentClients; i++) {
+        for (int i = 0; i < MAX_CLIENTS; i++) {
             if (clients[i] != null
                     && clients[i].getIp().equals(dp.getAddress())
                     && clients[i].getPort() == dp.getPort()) {
@@ -201,23 +221,38 @@ public class ThreadServer extends Thread {
         return -1;
     }
 
-    private void removeSlot(int slot) {
-        for (int i = slot; i < currentClients - 1; i++) {
-            clients[i] = clients[i + 1];
+    /** Lowest free slot, so a client that leaves frees its index for a new one. */
+    private int firstFreeSlot() {
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (clients[i] == null)
+                return i;
         }
-        clients[currentClients - 1] = null;
+        return -1;
+    }
+
+    /**
+     * Frees one slot. The other clients keep the index they were given in
+     * {@code ACCEPT}: slots are never reindexed, because every client caches its
+     * own slot and the state packet is routed by it.
+     */
+    private void removeSlot(int slot) {
+        if (slot < 0 || slot >= MAX_CLIENTS || clients[slot] == null)
+            return;
+        clients[slot] = null;
         currentClients--;
     }
 
     private void broadcast(byte header) throws IOException {
-        for (int i = 0; i < currentClients; i++) {
-            sendHeader(header, clients[i].getIp(), clients[i].getPort());
+        for (NetworkDir client : clients) {
+            if (client != null)
+                sendHeader(header, client.getIp(), client.getPort());
         }
     }
 
     private void broadcast(byte[] data) throws IOException {
-        for (int i = 0; i < currentClients; i++) {
-            send(data, clients[i].getIp(), clients[i].getPort());
+        for (NetworkDir client : clients) {
+            if (client != null)
+                send(data, client.getIp(), client.getPort());
         }
     }
 

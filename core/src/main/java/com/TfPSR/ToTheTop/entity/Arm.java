@@ -225,5 +225,12 @@ public class Arm {
     public boolean isGrabbing() {
         return state == ArmState.GRABBING;
     }
+
+    /** Frees the sprites of this arm; its bodies are destroyed by its character. */
+    public void dispose() {
+        spriteUpperArm.getTexture().dispose();
+        spriteForearm.getTexture().dispose();
+        spriteHand.getTexture().dispose();
+    }
 }
 

@@ -273,4 +273,21 @@ public class Character {
     public Vector2 getPosition() {
         return head.getPosition();
     }
+
+    /**
+     * Removes every body of this character from the world and frees its sprites.
+     * Used when its slot leaves the match; the joints of a destroyed body are
+     * destroyed with it, including the grip joint against a surface.
+     */
+    public void dispose() {
+        for (Body body : parts)
+            world.destroyBody(body);
+
+        spriteHead.getTexture().dispose();
+        spriteTorso.getTexture().dispose();
+        spriteLeftLeg.getTexture().dispose();
+        spriteRightLeg.getTexture().dispose();
+        leftArm.dispose();
+        rightArm.dispose();
+    }
 }
