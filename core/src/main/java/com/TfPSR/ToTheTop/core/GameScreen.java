@@ -8,6 +8,10 @@ import com.TfPSR.ToTheTop.input.GameInputProcessor;
 import com.TfPSR.ToTheTop.map.GameMap;
 import com.TfPSR.ToTheTop.map.Rocks;
 import com.TfPSR.ToTheTop.menus.SettingsMenu;
+import com.TfPSR.ToTheTop.network.InputState;
+import com.TfPSR.ToTheTop.network.PartState;
+import com.TfPSR.ToTheTop.network.PlayerState;
+import com.TfPSR.ToTheTop.network.StatePacket;
 import com.TfPSR.ToTheTop.network.ThreadServer;
 import com.TfPSR.ToTheTop.physics.GameContactListener;
 import com.TfPSR.ToTheTop.menus.PauseMenu;
@@ -30,6 +34,10 @@ public class GameScreen extends ScreenAdapter {
     private static final float SPAWN_SPACING = 3f;
     private static final float CAMERA_ZOOM = 1.5f;
 
+    /** The simulation and the state broadcast both run on this fixed tick. */
+    private static final float FIXED_STEP = 1f / 60f;
+    private static final int MAX_STEPS_PER_FRAME = 5;
+
     private final Main game;
     private final OrthographicCamera camera;
     private final Batch batch;
@@ -48,6 +56,16 @@ public class GameScreen extends ScreenAdapter {
     private final Rocks rocks;
 
     private final GameInputProcessor inputProcessor;
+    private final ThreadServer server;
+
+    /** Previous pointer and buttons of every slot, to derive velocity and edges. */
+    private final float[] previousPointerX;
+    private final float[] previousPointerY;
+    private final boolean[] hasPointer;
+    private final boolean[] previousLeftButton;
+    private final boolean[] previousRightButton;
+
+    private float accumulator = 0f;
     private boolean paused = false;
     private final SettingsMenu settingsMenu;
     private final PauseMenu pauseMenu;
@@ -59,6 +77,7 @@ public class GameScreen extends ScreenAdapter {
         this.assetService = assetService;
         this.dash = assetService.get(SoundAsset.DASH);
         this.inputMultiplexer = new InputMultiplexer();
+        this.server = game.getServer();
         this.settingsMenu = settingsMenu;
         this.pauseMenu = new PauseMenu(assetService, game, this, settingsMenu);
 
@@ -72,6 +91,12 @@ public class GameScreen extends ScreenAdapter {
         rocks = new Rocks(map.getSurfaceObjects(), world);
 
         players = createPlayers(game.getPlayerCount());
+
+        previousPointerX = new float[players.length];
+        previousPointerY = new float[players.length];
+        hasPointer = new boolean[players.length];
+        previousLeftButton = new boolean[players.length];
+        previousRightButton = new boolean[players.length];
 
         inputProcessor = new GameInputProcessor(this);
         inputMultiplexer.addProcessor(pauseMenu.getStage());
@@ -139,15 +164,100 @@ public class GameScreen extends ScreenAdapter {
         }
     }
 
+    /**
+     * Fixed tick: the physics and the state broadcast advance in equal steps no
+     * matter how many frames the window renders, so the client receives a stable
+     * cadence. A long frame is clamped instead of being simulated in full.
+     */
     private void update(float delta) {
-        centerCameraOnPlayers();
+        accumulator += Math.min(delta, FIXED_STEP * MAX_STEPS_PER_FRAME);
 
-        // No local input is applied yet: the server only receives the players'
-        // input packets, so the characters are stepped with no force at all.
-        for (Character player : players)
-            player.update(Vector2.Zero, false, false);
+        while (accumulator >= FIXED_STEP) {
+            step(FIXED_STEP);
+            accumulator -= FIXED_STEP;
+        }
+
+        centerCameraOnPlayers();
+    }
+
+    private void step(float delta) {
+        for (int slot = 0; slot < players.length; slot++)
+            applyInput(slot, players[slot], delta);
 
         world.step(delta, 10, 4);
+
+        sendState();
+    }
+
+    /**
+     * Feeds one character with the input its client sent for this tick. It mirrors
+     * what the client used to do with its own mouse: the pointer delta becomes the
+     * velocity that moves the hands, both buttons apply force while held, and a
+     * release latches the grip exactly like the local mouse release did.
+     */
+    private void applyInput(int slot, Character player, float delta) {
+        InputState input = server == null ? null : server.getClientInput(slot);
+        if (input == null) {
+            player.update(Vector2.Zero, false, false);
+            return;
+        }
+
+        Vector2 pointerVelocity = pointerVelocity(slot, input, delta);
+
+        if (previousLeftButton[slot] && !input.left())
+            player.onLeftMouseReleased();
+
+        if (previousRightButton[slot] && !input.right())
+            player.onRightMouseReleased();
+
+        previousLeftButton[slot] = input.left();
+        previousRightButton[slot] = input.right();
+
+        player.update(pointerVelocity, input.left(), input.right());
+    }
+
+    /** Pointer speed in world meters per second from one input to the next. */
+    private Vector2 pointerVelocity(int slot, InputState input, float delta) {
+        if (!hasPointer[slot]) {
+            hasPointer[slot] = true;
+            previousPointerX[slot] = input.mouseX();
+            previousPointerY[slot] = input.mouseY();
+            return Vector2.Zero;
+        }
+
+        float velocityX = (input.mouseX() - previousPointerX[slot]) / delta;
+        float velocityY = (input.mouseY() - previousPointerY[slot]) / delta;
+
+        previousPointerX[slot] = input.mouseX();
+        previousPointerY[slot] = input.mouseY();
+
+        return new Vector2(velocityX, velocityY);
+    }
+
+    /** Broadcasts the bodies of every player as one STATE datagram. */
+    private void sendState() {
+        if (server == null)
+            return;
+
+        PlayerState[] snapshot = new PlayerState[players.length];
+        for (int i = 0; i < players.length; i++)
+            snapshot[i] = toPlayerState(i, players[i]);
+
+        server.broadcastState(StatePacket.encode(snapshot, StatePacket.MATCH_RUNNING));
+    }
+
+    private PlayerState toPlayerState(int slot, Character player) {
+        Body[] bodies = player.getParts();
+        PartState[] parts = new PartState[bodies.length];
+
+        for (int i = 0; i < bodies.length; i++) {
+            Body body = bodies[i];
+            Vector2 position = body.getPosition();
+            parts[i] = new PartState(position.x, position.y, (float) Math.toDegrees(body.getAngle()));
+        }
+
+        return new PlayerState(slot, parts,
+                player.isLeftHandGripping(), player.isRightHandGripping(), false);
     }
 
     /** Keeps the camera on the midpoint of every player so all of them are visible. */

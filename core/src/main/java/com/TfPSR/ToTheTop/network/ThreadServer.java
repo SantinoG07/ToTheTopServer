@@ -34,6 +34,21 @@ public class ThreadServer extends Thread {
     }
 
     /**
+     * Sends one encoded match state to every connected client. A client that
+     * cannot be reached must never interrupt the simulation, so failures are
+     * only logged.
+     */
+    public void broadcastState(byte[] state) {
+        if (!started || state == null)
+            return;
+        try {
+            broadcast(state);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
      * Last input decoded for the client in that slot, or {@code null} if the slot
      * is unknown or never sent one. Meant for observation and tests.
      */

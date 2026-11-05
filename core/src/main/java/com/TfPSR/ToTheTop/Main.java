@@ -68,6 +68,11 @@ public class Main extends Game { //We use Game, because it has better methods of
         return this.ts == null ? 0 : this.ts.getPlayerCount();
     }
 
+    /** The running server, or {@code null} before the menu button starts it. */
+    public ThreadServer getServer() {
+        return this.ts;
+    }
+
     @Override
     public void resize(int width, int height) {
         super.resize(width, height);
