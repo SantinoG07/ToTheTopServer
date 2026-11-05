@@ -63,6 +63,9 @@ public class GameScreen extends ScreenAdapter {
     /** Event bits of the previous tick of every slot, to react on the rising edge. */
     private final int[] previousEvents;
 
+    /** Paused players keep their body but stop receiving input until resumed. */
+    private final boolean[] paused;
+
     private float accumulator = 0f;
 
     public GameScreen(Main game, AssetService assetService) {
@@ -90,6 +93,7 @@ public class GameScreen extends ScreenAdapter {
         previousLeftButton = new boolean[players.length];
         previousRightButton = new boolean[players.length];
         previousEvents = new int[players.length];
+        paused = new boolean[players.length];
     }
 
     /**
@@ -177,10 +181,28 @@ public class GameScreen extends ScreenAdapter {
         }
 
         // One-off events arrive repeated for a few ticks, so only the tick where
-        // the bit appears is acted on. Wiki 3.7.4: the impulse is a small jump.
+        // the bit appears is acted on.
         int pressedEvents = input.events() & ~previousEvents[slot];
         previousEvents[slot] = input.events();
 
+        if ((pressedEvents & InputPacket.EVENT_PAUSE) != 0)
+            paused[slot] = true;
+
+        if ((pressedEvents & InputPacket.EVENT_RESUME) != 0)
+            paused[slot] = false;
+
+        // A paused player keeps its body in the world but stops driving it: the
+        // previous pointer and buttons are forgotten so resuming cannot apply a
+        // jump from the frames that were skipped.
+        if (paused[slot]) {
+            hasPointer[slot] = false;
+            previousLeftButton[slot] = false;
+            previousRightButton[slot] = false;
+            player.update(Vector2.Zero, false, false, false, false);
+            return;
+        }
+
+        // Wiki 3.7.4: the impulse is a small jump from the torso.
         if ((pressedEvents & InputPacket.EVENT_IMPULSE) != 0)
             player.impulse();
 
