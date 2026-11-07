@@ -2,6 +2,8 @@ package com.TfPSR.ToTheTop.network;
 
 import java.io.IOException;
 import java.net.*;
+import java.nio.charset.StandardCharsets;
+import java.util.Random;
 
 public class ThreadServer extends Thread {
 
@@ -15,6 +17,12 @@ public class ThreadServer extends Thread {
     private volatile boolean started = false;   // una vez en partida ya no se admiten cambios
     private int nextSession = 1;                // ids de 1 a 255, nunca 0
 
+    /**
+     * Four-digit code a client must send on CONNECT. It is generated once per
+     * server so the room can be told apart from other servers on the network.
+     */
+    private final byte[] roomCode = createRoomCode();
+
     public ThreadServer() {
         try {
             conection = new DatagramSocket(6767);
@@ -22,6 +30,16 @@ public class ThreadServer extends Thread {
             e.printStackTrace();
             throw new IllegalStateException("No se pudo abrir el puerto 6767", e);
         }
+    }
+
+    private static byte[] createRoomCode() {
+        int code = 1000 + new Random().nextInt(9000);
+        return Integer.toString(code).getBytes(StandardCharsets.US_ASCII);
+    }
+
+    /** Four-digit code players must type to join this room, for the menu label. */
+    public String getRoomCode() {
+        return new String(roomCode, StandardCharsets.US_ASCII);
     }
 
     /** True once the match started, so the server can switch to the players' screen. */
@@ -70,11 +88,21 @@ public class ThreadServer extends Thread {
         return client == null ? null : client.getLastInput();
     }
 
+    /**
+     * Name registered for the client in that slot, or {@code null} when the slot
+     * is unknown or free. Meant for observation and tests.
+     */
+    public String getClientName(int slot) {
+        if (slot < 0 || slot >= MAX_CLIENTS)
+            return null;
+        NetworkDir client = clients[slot];
+        return client == null ? null : client.getName();
+    }
+
     private void send(byte[] data, InetAddress ip, int port) throws IOException {
         DatagramPacket packet = new DatagramPacket(data, data.length, ip, port);
         conection.send(packet);
     }
-
 
     @Override
     public void run() {
@@ -100,11 +128,33 @@ public class ThreadServer extends Thread {
 
         switch (header) {
             case NetworkHeaders.CONNECT -> handleConexion(dp);
+            case NetworkHeaders.DISCOVER -> handleDiscover(dp);
             case NetworkHeaders.READY -> handleReady(dp, true);
             case NetworkHeaders.UNREADY -> handleReady(dp, false);
             case NetworkHeaders.DISCONNECT -> handleDesconectar(dp);
             case NetworkHeaders.INPUT -> handleInput(dp);
         }
+    }
+
+    /**
+     * Answers a discovery broadcast with the room code, so a client can ask which
+     * room is on this network before sending a CONNECT.
+     */
+    private void handleDiscover(DatagramPacket dp) throws IOException {
+        if (!hasCurrentVersion(dp)) {
+            sendReject(dp, NetworkHeaders.REJECT_VERSION);
+            return;
+        }
+
+        byte[] announce = new byte[]{
+                NetworkHeaders.ANNOUNCE,
+                ProtocolVersion.CURRENT,
+                roomCode[0], roomCode[1], roomCode[2], roomCode[3],
+                (byte) currentClients,
+                (byte) (started ? 1 : 0),
+                (byte) MAX_CLIENTS};
+
+        send(announce, dp.getAddress(), dp.getPort());
     }
 
     /**
@@ -149,6 +199,18 @@ public class ThreadServer extends Thread {
             return;
         }
 
+        // A malformed request is dropped instead of answered: the client retries
+        // the handshake on timeout, and a valid request with another code is the
+        // only case that deserves a room rejection.
+        ConnectPacket request = ConnectPacket.decode(dp.getData(), dp.getOffset(), dp.getLength());
+        if (request == null)
+            return;
+
+        if (!getRoomCode().equals(request.roomCode())) {
+            sendReject(dp, NetworkHeaders.REJECT_ROOM);
+            return;
+        }
+
         int slot = findClient(dp);
 
         if (slot == -1) {
@@ -170,12 +232,21 @@ public class ThreadServer extends Thread {
                     + " (" + dp.getAddress() + ":" + dp.getPort() + ")");
         }
 
+        clients[slot].setName(playerName(request.name(), slot));
+
         send(new byte[]{NetworkHeaders.ACCEPT, ProtocolVersion.CURRENT,
-                (byte) clients[slot].getSession(), (byte) slot}, dp.getAddress(), dp.getPort());
+                (byte) clients[slot].getSession(), (byte) slot,
+                roomCode[0], roomCode[1], roomCode[2], roomCode[3]},
+                dp.getAddress(), dp.getPort());
 
         broadcastRoster();
 
         checkStart();
+    }
+
+    /** A client that sends no name still gets a distinct roster entry. */
+    private static String playerName(String name, int slot) {
+        return name == null || name.isEmpty() ? "Player " + (slot + 1) : name;
     }
 
     private void handleReady(DatagramPacket dp, boolean ready) throws IOException {
@@ -277,7 +348,8 @@ public class ThreadServer extends Thread {
     }
 
     /** Lowest free slot, so a client that leaves frees its index for a new one. */
-    private int firstFreeSlot() {        for (int i = 0; i < MAX_CLIENTS; i++) {
+    private int firstFreeSlot() {
+        for (int i = 0; i < MAX_CLIENTS; i++) {
             if (clients[i] == null)
                 return i;
         }

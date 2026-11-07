@@ -5,6 +5,7 @@ import com.TfPSR.ToTheTop.asset.AssetService;
 import com.TfPSR.ToTheTop.asset.MusicAsset;
 import com.TfPSR.ToTheTop.asset.TextureAsset;
 import com.TfPSR.ToTheTop.core.GameScreen;
+import com.TfPSR.ToTheTop.network.ThreadServer;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.audio.Music;
@@ -15,6 +16,7 @@ import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
@@ -38,6 +40,7 @@ public class MainMenu extends ScreenAdapter {
     private final Skin skin;
     private final Table tablePlay;
     private final TextButton powerButton;
+    private final Label roomCodeLabel;
 
     public MainMenu(Main game, AssetService assetService) {
         this.game = game;
@@ -63,9 +66,21 @@ public class MainMenu extends ScreenAdapter {
             }
         });
 
+        this.roomCodeLabel = new Label("", this.skin.get("defaultLabelStyle", Label.LabelStyle.class));
+
         this.tablePlay.setFillParent(true);
         this.stage.addActor(this.tablePlay);
         this.tablePlay.add(this.powerButton).width(250).height(60);
+        this.tablePlay.row();
+        this.tablePlay.add(this.roomCodeLabel).padTop(20);
+    }
+
+    /** Shows the room code once the server exists, so players know what to type. */
+    private void updateRoomCodeLabel() {
+        ThreadServer server = this.game.getServer();
+        if (server == null || this.roomCodeLabel.getText().length() > 0)
+            return;
+        this.roomCodeLabel.setText("Sala: " + server.getRoomCode());
     }
 
     @Override
@@ -82,6 +97,7 @@ public class MainMenu extends ScreenAdapter {
     public void render(float delta) {
         Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+        updateRoomCodeLabel();
         this.camera.update();
         this.batch.setProjectionMatrix(this.camera.combined);
 

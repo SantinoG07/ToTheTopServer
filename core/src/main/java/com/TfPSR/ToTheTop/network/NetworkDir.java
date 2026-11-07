@@ -7,6 +7,7 @@ public class NetworkDir {
     private int port;
     private final int session;
     private boolean ready;
+    private String name;
     private volatile InputState lastInput;
 
     public NetworkDir(InetAddress ip, int port, int session) {
@@ -14,6 +15,16 @@ public class NetworkDir {
         this.port = port;
         this.session = session;
         this.ready = false;
+        this.name = "Player";
+    }
+
+    /** Name the client sent on CONNECT, or the server fallback. */
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 
     /** Id the server assigned to this client; every message after CONNECT echoes it. */
