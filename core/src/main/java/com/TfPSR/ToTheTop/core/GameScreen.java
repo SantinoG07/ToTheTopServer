@@ -146,8 +146,13 @@ public class GameScreen extends ScreenAdapter {
         mapRenderer.setView(camera);
         mapRenderer.render();
         batch.begin();
-        for (Character player : players)
+        // A slot freed during the match has no body left: drawing it would
+        // throw on the first frame after the client leaves.
+        for (Character player : players) {
+            if (player == null)
+                continue;
             player.draw(batch);
+        }
 
         batch.setProjectionMatrix(camera.combined);
         debugRenderer.render(world, camera.combined);
