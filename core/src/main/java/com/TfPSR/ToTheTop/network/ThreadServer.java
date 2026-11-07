@@ -2,6 +2,7 @@ package com.TfPSR.ToTheTop.network;
 
 import java.io.IOException;
 import java.net.*;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Random;
 
@@ -9,6 +10,16 @@ public class ThreadServer extends Thread {
 
     private static final int MAX_CLIENTS = 4;
     private static final int MIN_CLIENTS = 2;
+
+    /**
+     * Fixed palette: every slot keeps the same colour for the whole match, so a
+     * player is recognisable by the tint of its body and by the name above it.
+     */
+    private static final byte[][] PALETTE = {
+            {(byte) 235, (byte) 82, (byte) 82},
+            {(byte) 82, (byte) 150, (byte) 235},
+            {(byte) 92, (byte) 200, (byte) 96},
+            {(byte) 235, (byte) 196, (byte) 82}};
 
     private final DatagramSocket conection;
     private volatile boolean running = true;
@@ -300,13 +311,55 @@ public class ThreadServer extends Thread {
     }
 
     private void broadcastRoster() throws IOException {
+        broadcast(encodeRoster());
+    }
+
+    /**
+     * ROSTER: header, version, count, readyCount, then one entry per occupied
+     * slot with its ready flag, its palette colour and its name.
+     */
+    private byte[] encodeRoster() {
         int readyCount = 0;
-        for (NetworkDir client : clients) {
-            if (client != null && client.isReady())
+        int size = 4;
+
+        for (int slot = 0; slot < MAX_CLIENTS; slot++) {
+            NetworkDir client = clients[slot];
+            if (client == null)
+                continue;
+            if (client.isReady())
                 readyCount++;
+            size += 6 + nameBytes(client).length;
         }
-        broadcast(new byte[]{NetworkHeaders.ROSTER, ProtocolVersion.CURRENT,
-                (byte) currentClients, (byte) readyCount});
+
+        ByteBuffer buffer = ByteBuffer.allocate(size);
+        buffer.put(NetworkHeaders.ROSTER);
+        buffer.put(ProtocolVersion.CURRENT);
+        buffer.put((byte) currentClients);
+        buffer.put((byte) readyCount);
+
+        for (int slot = 0; slot < MAX_CLIENTS; slot++) {
+            NetworkDir client = clients[slot];
+            if (client == null)
+                continue;
+
+            byte[] name = nameBytes(client);
+            byte[] color = PALETTE[slot];
+
+            buffer.put((byte) slot);
+            buffer.put((byte) (client.isReady() ? 1 : 0));
+            buffer.put(color[0]);
+            buffer.put(color[1]);
+            buffer.put(color[2]);
+            buffer.put((byte) name.length);
+            buffer.put(name);
+        }
+
+        return buffer.array();
+    }
+
+    /** Name of a client as UTF-8 bytes; CONNECT already clamped it to 16 bytes. */
+    private static byte[] nameBytes(NetworkDir client) {
+        return client.getName().getBytes(StandardCharsets.UTF_8);
     }
 
     private int findClient(DatagramPacket dp) {
