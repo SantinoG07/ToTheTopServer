@@ -10,12 +10,25 @@ public class NetworkDir {
     private String name;
     private volatile InputState lastInput;
 
+    /** Moment of the last datagram received from this client, in millis. */
+    private volatile long lastSeen = System.currentTimeMillis();
+
     public NetworkDir(InetAddress ip, int port, int session) {
         this.ip = ip;
         this.port = port;
         this.session = session;
         this.ready = false;
         this.name = "Player";
+    }
+
+    /** Marks that the client is alive, so the keepalive does not drop it. */
+    public void touch() {
+        lastSeen = System.currentTimeMillis();
+    }
+
+    /** Milliseconds since the last datagram received from this client. */
+    public long millisSinceLastSeen() {
+        return System.currentTimeMillis() - lastSeen;
     }
 
     /** Name the client sent on CONNECT, or the server fallback. */

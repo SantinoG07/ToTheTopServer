@@ -12,6 +12,15 @@ public class ThreadServer extends Thread {
     private static final int MIN_CLIENTS = 2;
 
     /**
+     * A client that stays silent this long is considered gone: its slot is
+     * released and its body leaves the match.
+     */
+    private static final long CLIENT_TIMEOUT_MS = 5000;
+
+    /** Receive poll, so silence is detected even when nothing arrives. */
+    private static final int RECEIVE_TIMEOUT_MS = 1000;
+
+    /**
      * Fixed palette: every slot keeps the same colour for the whole match, so a
      * player is recognisable by the tint of its body and by the name above it.
      */
@@ -37,6 +46,7 @@ public class ThreadServer extends Thread {
     public ThreadServer() {
         try {
             conection = new DatagramSocket(6767);
+            conection.setSoTimeout(RECEIVE_TIMEOUT_MS);
         } catch (SocketException e) {
             e.printStackTrace();
             throw new IllegalStateException("No se pudo abrir el puerto 6767", e);
@@ -118,15 +128,41 @@ public class ThreadServer extends Thread {
     @Override
     public void run() {
         while (running) {
-            byte[] buf = new byte[1024];
+            byte[] buf = new byte[2048];
             DatagramPacket dp = new DatagramPacket(buf, buf.length);
             try {
                 conection.receive(dp);
                 processMessage(dp);
+            } catch (SocketTimeoutException e) {
+                // the poll expired with no datagram; the silence check below
+                // still runs so an idle server notices an absent client
             } catch (IOException e) {
                 if (running)
                     e.printStackTrace();
                 return;
+            }
+
+            dropSilentClients();
+        }
+    }
+
+    /**
+     * Releases every slot whose client stopped sending datagrams. During a
+     * match the 60 Hz input keeps a player alive, and the client sends a PING
+     * every second while it waits in the room.
+     */
+    private void dropSilentClients() {
+        for (int slot = 0; slot < MAX_CLIENTS; slot++) {
+            NetworkDir client = clients[slot];
+            if (client == null || client.millisSinceLastSeen() < CLIENT_TIMEOUT_MS)
+                continue;
+
+            System.out.println("Cliente silencioso liberado del slot " + slot);
+            removeSlot(slot);
+            try {
+                broadcastRoster();
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         }
     }
@@ -144,7 +180,22 @@ public class ThreadServer extends Thread {
             case NetworkHeaders.UNREADY -> handleReady(dp, false);
             case NetworkHeaders.DISCONNECT -> handleDesconectar(dp);
             case NetworkHeaders.INPUT -> handleInput(dp);
+            case NetworkHeaders.PING -> handlePing(dp);
         }
+    }
+
+    /**
+     * Answers the keepalive. The reply proves to the client that the server is
+     * still there, and receiving the request proves to the server that the
+     * client is still there.
+     */
+    private void handlePing(DatagramPacket dp) throws IOException {
+        int slot = sessionSlot(dp);
+        if (slot == -1)
+            return;
+
+        send(new byte[]{NetworkHeaders.PONG, ProtocolVersion.CURRENT,
+                (byte) clients[slot].getSession()}, dp.getAddress(), dp.getPort());
     }
 
     /**
@@ -185,6 +236,8 @@ public class ThreadServer extends Thread {
         // stray or spoofed datagram must never reach the simulation.
         if (readSession(dp) != clients[slot].getSession())
             return;
+
+        clients[slot].touch();
 
         InputState input = InputPacket.decode(dp.getData(), dp.getOffset(), dp.getLength());
         if (input == null) {
@@ -241,6 +294,10 @@ public class ThreadServer extends Thread {
             currentClients++;
             System.out.println("Cliente conectado en slot " + slot + " sesion " + session
                     + " (" + dp.getAddress() + ":" + dp.getPort() + ")");
+        } else {
+            // A repeated CONNECT from a client that is already in the room also
+            // proves it is alive.
+            clients[slot].touch();
         }
 
         clients[slot].setName(playerName(request.name(), slot));
@@ -261,11 +318,8 @@ public class ThreadServer extends Thread {
     }
 
     private void handleReady(DatagramPacket dp, boolean ready) throws IOException {
-        int slot = findClient(dp);
+        int slot = sessionSlot(dp);
         if (slot == -1 || started)
-            return;
-
-        if (readSession(dp) != clients[slot].getSession())
             return;
 
         clients[slot].setReady(ready);
@@ -276,11 +330,8 @@ public class ThreadServer extends Thread {
     }
 
     private void handleDesconectar(DatagramPacket dp) throws IOException {
-        int slot = findClient(dp);
+        int slot = sessionSlot(dp);
         if (slot == -1)
-            return;
-
-        if (readSession(dp) != clients[slot].getSession())
             return;
 
         System.out.println("Cliente desconectado del slot " + slot + " (" + dp.getAddress() + ":" + dp.getPort() + ")");
@@ -371,6 +422,20 @@ public class ThreadServer extends Thread {
             }
         }
         return -1;
+    }
+
+    /**
+     * Slot of a message that carries the session of its connection, or -1 when
+     * the sender is unknown or the id does not match. Reading a valid message
+     * also refreshes the keepalive of that client.
+     */
+    private int sessionSlot(DatagramPacket dp) {
+        int slot = findClient(dp);
+        if (slot == -1 || readSession(dp) != clients[slot].getSession())
+            return -1;
+
+        clients[slot].touch();
+        return slot;
     }
 
     /** True when the datagram carries the protocol version this server speaks. */
