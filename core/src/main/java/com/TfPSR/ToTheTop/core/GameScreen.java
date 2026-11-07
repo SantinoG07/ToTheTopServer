@@ -67,6 +67,9 @@ public class GameScreen extends ScreenAdapter {
     /** Paused players keep their body but stop receiving input until resumed. */
     private final boolean[] paused;
 
+    /** Set once the win is announced: the match stops simulating and sending. */
+    private boolean finished;
+
     private float accumulator = 0f;
 
     public GameScreen(Main game, AssetService assetService) {
@@ -168,6 +171,9 @@ public class GameScreen extends ScreenAdapter {
     }
 
     private void step(float delta) {
+        if (finished)
+            return;
+
         for (int slot = 0; slot < players.length; slot++) {
             Character player = players[slot];
             if (player == null)
@@ -188,7 +194,32 @@ public class GameScreen extends ScreenAdapter {
 
         world.step(delta, 10, 4);
 
-        sendState();
+        // The summit of the route ends the match: one last state announces the
+        // win and the tick stops, so nothing else is simulated or sent.
+        if (MatchEnd.reachedSummit(headHeights(), map.getSummitY())) {
+            finishMatch();
+            return;
+        }
+
+        sendState(StatePacket.MATCH_RUNNING, StatePacket.RESULT_NONE);
+    }
+
+    /** Height of every simulated head, in meters; the head anchors the character. */
+    private float[] headHeights() {
+        float[] heights = new float[getPlayerCount()];
+        int index = 0;
+        for (Character player : players) {
+            if (player != null)
+                heights[index++] = player.getPosition().y;
+        }
+        return heights;
+    }
+
+    /** Sends the final state with the win and prevents any further tick. */
+    private void finishMatch() {
+        finished = true;
+        System.out.println("Partida terminada: un jugador llego a la cima");
+        sendState(StatePacket.MATCH_FINISHED, StatePacket.RESULT_WIN);
     }
 
     /**
@@ -263,8 +294,11 @@ public class GameScreen extends ScreenAdapter {
         return new Vector2(velocityX, velocityY);
     }
 
-    /** Broadcasts the bodies of every connected player as one STATE datagram. */
-    private void sendState() {
+    /**
+     * Broadcasts the bodies of every connected player as one STATE datagram,
+     * with the match state and the result of the current tick.
+     */
+    private void sendState(byte matchState, byte result) {
         if (server == null)
             return;
 
@@ -275,8 +309,7 @@ public class GameScreen extends ScreenAdapter {
                 snapshot[index++] = toPlayerState(slot, players[slot]);
         }
 
-        server.broadcastState(StatePacket.encode(snapshot, StatePacket.MATCH_RUNNING,
-                StatePacket.RESULT_NONE, (byte) 0));
+        server.broadcastState(StatePacket.encode(snapshot, matchState, result, (byte) 0));
     }
 
     private PlayerState toPlayerState(int slot, Character player) {
