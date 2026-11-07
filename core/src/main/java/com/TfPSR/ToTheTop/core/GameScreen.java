@@ -275,7 +275,8 @@ public class GameScreen extends ScreenAdapter {
                 snapshot[index++] = toPlayerState(slot, players[slot]);
         }
 
-        server.broadcastState(StatePacket.encode(snapshot, StatePacket.MATCH_RUNNING));
+        server.broadcastState(StatePacket.encode(snapshot, StatePacket.MATCH_RUNNING,
+                StatePacket.RESULT_NONE, (byte) 0));
     }
 
     private PlayerState toPlayerState(int slot, Character player) {

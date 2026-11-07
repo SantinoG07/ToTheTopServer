@@ -12,16 +12,23 @@ import java.nio.ByteBuffer;
  * head, torso, left upper arm, left forearm, left hand, right upper arm,
  * right forearm, right hand, left leg, right leg.
  *
- * <p>Layout: header, protocol version, match state, player count, then one block
- * per player with its slot, its part count, three floats per part, the grip mask
- * and the flags byte.
+ * <p>Layout: header, protocol version, match state, result, environment mask,
+ * player count, then one block per player with its slot, its part count, three
+ * floats per part, the grip mask and the flags byte.
+ *
+ * <p>The result is only meaningful once the match state says it finished; the
+ * environment mask is reserved for the events listed as extra scope and stays
+ * zero until they are implemented.
  */
 public final class StatePacket {
 
-    /** The match is still running; no other value is produced yet. */
     public static final byte MATCH_RUNNING = 0;
+    public static final byte MATCH_FINISHED = 1;
 
-    public static final int HEADER_SIZE = 4;
+    public static final byte RESULT_NONE = 0;
+    public static final byte RESULT_WIN = 1;
+
+    public static final int HEADER_SIZE = 6;
     public static final int PLAYER_HEADER_SIZE = 2;
     public static final int PART_SIZE = 12;             // float x, float y, float angleDegrees
     public static final int PLAYER_TRAILER_SIZE = 2;    // grip mask, flags
@@ -52,8 +59,12 @@ public final class StatePacket {
      * Encodes the snapshot, or returns {@code null} when there is no player to
      * report: sending an empty frame would only wake the client up to draw
      * nothing.
+     *
+     * @param matchState {@link #MATCH_RUNNING} or {@link #MATCH_FINISHED}
+     * @param result     {@link #RESULT_NONE} while the match runs, the outcome once it ends
+     * @param envMask    reserved environment events, zero until they exist
      */
-    public static byte[] encode(PlayerState[] players, byte matchState) {
+    public static byte[] encode(PlayerState[] players, byte matchState, byte result, byte envMask) {
         if (players == null || players.length == 0)
             return null;
 
@@ -61,6 +72,8 @@ public final class StatePacket {
         buffer.put(NetworkHeaders.STATE);
         buffer.put(ProtocolVersion.CURRENT);
         buffer.put(matchState);
+        buffer.put(result);
+        buffer.put(envMask);
         buffer.put((byte) players.length);
 
         for (PlayerState player : players) {
