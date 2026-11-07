@@ -181,7 +181,41 @@ public class ThreadServer extends Thread {
             case NetworkHeaders.DISCONNECT -> handleDesconectar(dp);
             case NetworkHeaders.INPUT -> handleInput(dp);
             case NetworkHeaders.PING -> handlePing(dp);
+            case NetworkHeaders.START_REQUEST -> handleStartRequest(dp);
         }
+    }
+
+    /**
+     * Only the host, slot 0, starts the match, and only with at least two ready
+     * players. Any other request is ignored instead of answered, so a client
+     * cannot force a start by mistake or on purpose.
+     */
+    private void handleStartRequest(DatagramPacket dp) throws IOException {
+        int slot = sessionSlot(dp);
+        if (slot == -1 || started)
+            return;
+
+        if (slot != 0) {
+            System.out.println("Inicio ignorado: el slot " + slot + " no es el anfitrion");
+            return;
+        }
+
+        if (countReady() < MIN_CLIENTS)
+            return;
+
+        started = true;
+        System.out.println("Partida iniciada por el anfitrion con " + currentClients + " jugadores");
+        broadcastStart();
+    }
+
+    /** Occupied slots whose client already marked itself ready. */
+    private int countReady() {
+        int ready = 0;
+        for (NetworkDir client : clients) {
+            if (client != null && client.isReady())
+                ready++;
+        }
+        return ready;
     }
 
     /**
@@ -308,8 +342,6 @@ public class ThreadServer extends Thread {
                 dp.getAddress(), dp.getPort());
 
         broadcastRoster();
-
-        checkStart();
     }
 
     /** A client that sends no name still gets a distinct roster entry. */
@@ -326,7 +358,6 @@ public class ThreadServer extends Thread {
         System.out.println("Slot " + slot + (ready ? " esta listo" : " dejo de estar listo"));
 
         broadcastRoster();
-        checkStart();
     }
 
     private void handleDesconectar(DatagramPacket dp) throws IOException {
@@ -339,16 +370,8 @@ public class ThreadServer extends Thread {
         broadcastRoster();
     }
 
-    private void checkStart() throws IOException {
-        if (started || currentClients < MIN_CLIENTS)
-            return;
-        for (NetworkDir client : clients) {
-            if (client != null && !client.isReady())
-                return;
-        }
-        started = true;
-        System.out.println("Partida iniciada con " + currentClients + " jugadores");
-        broadcastStart();
+    private void broadcastRoster() throws IOException {
+        broadcast(encodeRoster());
     }
 
     /** START carries the session of each recipient, so it is sent one by one. */
@@ -361,26 +384,20 @@ public class ThreadServer extends Thread {
         }
     }
 
-    private void broadcastRoster() throws IOException {
-        broadcast(encodeRoster());
-    }
-
     /**
      * ROSTER: header, version, count, readyCount, then one entry per occupied
      * slot with its ready flag, its palette colour and its name.
      */
     private byte[] encodeRoster() {
-        int readyCount = 0;
         int size = 4;
 
-        for (int slot = 0; slot < MAX_CLIENTS; slot++) {
-            NetworkDir client = clients[slot];
+        for (NetworkDir client : clients) {
             if (client == null)
                 continue;
-            if (client.isReady())
-                readyCount++;
             size += 6 + nameBytes(client).length;
         }
+
+        int readyCount = countReady();
 
         ByteBuffer buffer = ByteBuffer.allocate(size);
         buffer.put(NetworkHeaders.ROSTER);
