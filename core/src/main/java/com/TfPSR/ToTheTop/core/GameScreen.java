@@ -230,8 +230,8 @@ public class GameScreen extends ScreenAdapter {
     /**
      * Feeds one character with the input its client sent for this tick. It mirrors
      * what the client used to do with its own mouse: the pointer delta becomes the
-     * velocity that moves the hands, both buttons apply force while held, and a
-     * release latches the grip exactly like the local mouse release did.
+     * velocity that moves the hands, both buttons apply force while held, a press
+     * lets go of a latched hand and a release grabs the surface under it.
      */
     private void applyInput(int slot, Character player, float delta) {
         InputState input = server == null ? null : server.getClientInput(slot);
@@ -268,6 +268,15 @@ public class GameScreen extends ScreenAdapter {
             player.impulse();
 
         Vector2 pointerVelocity = pointerVelocity(slot, input, delta);
+
+        // Pressing a button lets go of the hand that was latched; releasing it
+        // grabs the surface the hand is over. Without the press side a player
+        // could never let go and the climbing loop would be impossible.
+        if (input.left() && !previousLeftButton[slot])
+            player.releaseLeftHand();
+
+        if (input.right() && !previousRightButton[slot])
+            player.releaseRightHand();
 
         if (previousLeftButton[slot] && !input.left())
             player.onLeftMouseReleased();
