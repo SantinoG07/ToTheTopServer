@@ -228,6 +228,15 @@ public class ThreadServer extends Thread {
         if (slot == -1)
             return;
 
+        // START is sent on UDP, so the original broadcast can be lost.  A
+        // client that is still showing the lobby keeps pinging us; repeat its
+        // own start notification here until it has received one.  This keeps
+        // the lobby and the authoritative simulation from getting out of sync.
+        if (started) {
+            send(new byte[]{NetworkHeaders.START, ProtocolVersion.CURRENT,
+                    (byte) clients[slot].getSession()}, dp.getAddress(), dp.getPort());
+        }
+
         send(new byte[]{NetworkHeaders.PONG, ProtocolVersion.CURRENT,
                 (byte) clients[slot].getSession()}, dp.getAddress(), dp.getPort());
     }

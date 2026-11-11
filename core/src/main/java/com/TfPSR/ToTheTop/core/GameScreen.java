@@ -176,8 +176,14 @@ public class GameScreen extends ScreenAdapter {
     }
 
     private void step(float delta) {
-        if (finished)
+        // STATE is transported over UDP.  Keep publishing the final pose, not
+        // just the first frame that reached the summit, so every connected
+        // client can reliably receive the result even when that first datagram
+        // is lost.
+        if (finished) {
+            sendState(StatePacket.MATCH_FINISHED, StatePacket.RESULT_WIN);
             return;
+        }
 
         for (int slot = 0; slot < players.length; slot++) {
             Character player = players[slot];
