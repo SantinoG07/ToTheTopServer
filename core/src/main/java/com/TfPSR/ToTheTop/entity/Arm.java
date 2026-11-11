@@ -142,14 +142,6 @@ public class Arm {
         Vector2 localSurfacePoint =
             contactedSurface.getLocalPoint(contactPoint);
 
-        System.out.println("Contact world: " + contactPoint);
-        System.out.println("Surface body position: " + contactedSurface.getPosition());
-        System.out.println("Surface local anchor: " + localSurfacePoint);
-        System.out.println(
-            "Local -> World: " +
-                contactedSurface.getWorldPoint(localSurfacePoint)
-        );
-
         gripJoint = JointFactory.createRevoluteJoint(
             hand,
             contactedSurface,
