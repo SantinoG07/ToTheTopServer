@@ -8,12 +8,9 @@ import com.TfPSR.ToTheTop.Main;
 /** Launches the desktop (LWJGL3) application. */
 public class Lwjgl3Launcher {
     public static void main(String[] args) {
-        // GLFW cursor capture in a fullscreen Wayland window can stop event
-        // delivery after the first mouse click.  XWayland handles LibGDX's
-        // relative mouse mode reliably, so select it automatically for a
-        // Wayland session (and retain the explicit override for diagnostics).
-        if (System.getenv("TOTHETOP_GLFW_X11") != null
-                || System.getenv("WAYLAND_DISPLAY") != null)
+        // Kept as an opt-in escape hatch for systems that need XWayland.
+        // Native Wayland is much faster on many Linux drivers.
+        if (System.getenv("TOTHETOP_GLFW_X11") != null)
             org.lwjgl.glfw.GLFW.glfwInitHint(org.lwjgl.glfw.GLFW.GLFW_PLATFORM,
                     org.lwjgl.glfw.GLFW.GLFW_PLATFORM_X11);
         if (StartupHelper.startNewJvmIfRequired()) return; // This handles macOS support and helps on Windows.
@@ -37,7 +34,16 @@ public class Lwjgl3Launcher {
         //// useful for testing performance, but can also be very stressful to some hardware.
         //// You may also need to configure GPU drivers to fully disable Vsync; this can cause screen tearing.
 
-        configuration.setFullscreenMode(Lwjgl3ApplicationConfiguration.getDisplayMode());
+        // Fullscreen cursor capture under Wayland can lock up input, while
+        // XWayland fullscreen can be rendered at a fraction of the monitor
+        // refresh rate.  Native Wayland runs reliably in a normal window.
+        if (System.getenv("WAYLAND_DISPLAY") != null
+                && System.getenv("TOTHETOP_GLFW_X11") == null) {
+            configuration.setWindowedMode(1280, 720);
+            configuration.setResizable(true);
+        } else {
+            configuration.setFullscreenMode(Lwjgl3ApplicationConfiguration.getDisplayMode());
+        }
         //// You can change these files; they are in lwjgl3/src/main/resources/ .
         //// They can also be loaded from the root of assets/ .
         configuration.setWindowIcon("libgdx128.png", "libgdx64.png", "libgdx32.png", "libgdx16.png");
