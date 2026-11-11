@@ -8,6 +8,14 @@ import com.TfPSR.ToTheTop.Main;
 /** Launches the desktop (LWJGL3) application. */
 public class Lwjgl3Launcher {
     public static void main(String[] args) {
+        // GLFW cursor capture in a fullscreen Wayland window can stop event
+        // delivery after the first mouse click.  XWayland handles LibGDX's
+        // relative mouse mode reliably, so select it automatically for a
+        // Wayland session (and retain the explicit override for diagnostics).
+        if (System.getenv("TOTHETOP_GLFW_X11") != null
+                || System.getenv("WAYLAND_DISPLAY") != null)
+            org.lwjgl.glfw.GLFW.glfwInitHint(org.lwjgl.glfw.GLFW.GLFW_PLATFORM,
+                    org.lwjgl.glfw.GLFW.GLFW_PLATFORM_X11);
         if (StartupHelper.startNewJvmIfRequired()) return; // This handles macOS support and helps on Windows.
         createApplication();
     }
