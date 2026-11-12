@@ -29,7 +29,8 @@ public class GameScreen extends ScreenAdapter {
     private static final int MAX_PLAYERS = 4;
     private static final Vector2 CHARACTER_SIZE = new Vector2(0.6f, 1.80f);
     private static final float CHARACTER_WEIGHT = 80f;
-    private static final float SPAWN_SPACING = 3f;
+    /** Horizontal gap between the spawn points of consecutive slots, in meters. */
+    private static final float SPAWN_SPACING = 1.6f;
     private static final float CAMERA_ZOOM = 1.5f;
 
     /** The simulation and the state broadcast both run on this fixed tick. */
@@ -111,11 +112,22 @@ public class GameScreen extends ScreenAdapter {
         if (server == null)
             return created;
 
+        int players = 0;
+        for (int slot = 0; slot < MAX_PLAYERS; slot++) {
+            if (server.isSlotOccupied(slot))
+                players++;
+        }
+
+        // Spawns are centred on the map spawn and spread just enough that the
+        // bodies do not overlap, so every slot lands on the starting platform
+        // instead of inside the mountain.
+        int index = 0;
         for (int slot = 0; slot < MAX_PLAYERS; slot++) {
             if (!server.isSlotOccupied(slot))
                 continue;
 
-            float offsetX = (slot - (MAX_PLAYERS - 1) / 2f) * SPAWN_SPACING;
+            float offsetX = (index - (players - 1) / 2f) * SPAWN_SPACING;
+            index++;
             Vector2 position = new Vector2(spawn.x + offsetX, spawn.y);
             created[slot] = new Character(position, new Vector2(CHARACTER_SIZE), CHARACTER_WEIGHT, world);
         }
