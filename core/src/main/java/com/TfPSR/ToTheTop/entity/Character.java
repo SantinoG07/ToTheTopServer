@@ -45,7 +45,21 @@ public class Character {
     /** Vertical take-off speed of the impulse of wiki 3.7.4, in m/s. */
     private static final float IMPULSE_SPEED = 2.2f;
 
+    /**
+     * Force applied to the torso per (m/s) of pointer speed while a hand holds
+     * the rock. The arm servo alone only repositions the free hand: its force
+     * and the counter-force on the torso cancel out, so without this pull a
+     * gripped character could never lift its own weight.
+     */
+    private static final float CLIMB_GAIN = 120f;
+
+    /** Hard ceiling of the pull, as a multiple of the character weight. */
+    private static final float CLIMB_MAX_WEIGHT_FACTOR = 3f;
+
     private final World world;
+
+    /** Weight in kilograms, used to size the climbing pull. */
+    private final float weight;
 
     Vector2 position;
 
@@ -64,8 +78,12 @@ public class Character {
     /** The ten simulated bodies, in the order the state packet sends them. */
     private final Body[] parts;
 
+    /** Scratch vector of the climbing pull, reused every tick. */
+    private final Vector2 climbPull = new Vector2();
+
     public Character(Vector2 position, Vector2 size, float weight, World world) {
         this.position = position;
+        this.weight = weight;
 
         Vector2 headSize = new Vector2(size.x * HEAD_WIDTH_RATIO, size.y * HEAD_HEIGHT_RATIO);
         Vector2 torsoSize = new Vector2(size.x * CHEST_WIDTH_RATIO, size.y * CHEST_HEIGHT_RATIO);
@@ -248,6 +266,13 @@ public class Character {
             applyInternalArmForce(rightArm, mouseVelocity);
         }
 
+        // While a hand holds the rock, dragging the pointer pulls the body in
+        // that direction: this is the actual climbing stroke. Without a grip the
+        // pull is skipped, so the character cannot swim through the air.
+        if (isGripping() && (leftMousePressed || rightMousePressed)) {
+            applyClimbPull(mouseVelocity);
+        }
+
         // Wiki 3.7.5: A/D push the torso sideways, and only while a hand holds
         // a surface. Both keys cancel out.
         if (swingLeft || swingRight) {
@@ -257,6 +282,31 @@ public class Character {
             }
         }
     }
+
+    /**
+     * Pulls the torso toward the pointer movement, anchored to the gripping
+     * hand. Capped to a few times the character weight so a flick of the mouse
+     * cannot launch the body.
+     *
+     * <p>The pull is remembered between input packets: at low frame rates the
+     * pointer only changes on some ticks, and without this the character would
+     * only be pulled on those few ticks and could never climb.
+     */
+    private void applyClimbPull(Vector2 pointerVelocity) {
+        if (pointerVelocity.len2() > 0.0001f) {
+            climbPull.set(pointerVelocity).scl(CLIMB_GAIN);
+
+            float max = weight * 9.8f * CLIMB_MAX_WEIGHT_FACTOR;
+            if (climbPull.len2() > max * max)
+                climbPull.setLength(max);
+        } else {
+            // No fresh pointer data: keep the stroke alive for a few ticks.
+            climbPull.scl(0.85f);
+        }
+
+        torso.applyForceToCenter(climbPull, true);
+    }
+
 
     private void applyInternalArmForce(Arm arm, Vector2 mouseVelocity) {
         Vector2 force = arm.update(mouseVelocity);
