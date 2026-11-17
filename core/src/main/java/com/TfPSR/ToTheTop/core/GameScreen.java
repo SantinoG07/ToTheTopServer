@@ -37,6 +37,10 @@ public class GameScreen extends ScreenAdapter {
     private static final float FIXED_STEP = 1f / 60f;
     private static final int MAX_STEPS_PER_FRAME = 5;
 
+    /** Largest pointer movement accepted in one tick, in meters. */
+    private static final float MAX_POINTER_STEP = 2f;
+    private final Vector2 pointerDeltaScratch = new Vector2();
+
     private final Main game;
     private final OrthographicCamera camera;
     private final Batch batch;
@@ -255,7 +259,7 @@ public class GameScreen extends ScreenAdapter {
         InputState input = server == null ? null : server.getClientInput(slot);
         if (input == null) {
             previousEvents[slot] = 0;
-            player.update(Vector2.Zero, false, false, false, false);
+            player.update(Vector2.Zero, delta, false, false, false, false);
             return;
         }
 
@@ -277,7 +281,7 @@ public class GameScreen extends ScreenAdapter {
             hasPointer[slot] = false;
             previousLeftButton[slot] = false;
             previousRightButton[slot] = false;
-            player.update(Vector2.Zero, false, false, false, false);
+            player.update(Vector2.Zero, delta, false, false, false, false);
             return;
         }
 
@@ -285,7 +289,7 @@ public class GameScreen extends ScreenAdapter {
         if ((pressedEvents & InputPacket.EVENT_IMPULSE) != 0)
             player.impulse();
 
-        Vector2 pointerVelocity = pointerVelocity(slot, input, delta);
+        Vector2 pointerDelta = pointerDelta(slot, input);
 
         // Pressing a button lets go of the hand that was latched; releasing it
         // grabs the surface the hand is over. Without the press side a player
@@ -305,25 +309,33 @@ public class GameScreen extends ScreenAdapter {
         previousLeftButton[slot] = input.left();
         previousRightButton[slot] = input.right();
 
-        player.update(pointerVelocity, input.left(), input.right(), input.a(), input.d());
+        player.update(pointerDelta, delta, input.left(), input.right(), input.a(), input.d());
     }
 
-    /** Pointer speed in world meters per second from one input to the next. */
-    private Vector2 pointerVelocity(int slot, InputState input, float delta) {
+    /**
+     * Pointer movement in world meters since the previous tick. Non-finite
+     * coordinates are ignored and a single tick cannot move more than
+     * {@link #MAX_POINTER_STEP}, so a corrupt packet cannot fling a hand.
+     */
+    private Vector2 pointerDelta(int slot, InputState input) {
+        if (!Float.isFinite(input.mouseX()) || !Float.isFinite(input.mouseY()))
+            return pointerDeltaScratch.setZero();
+
         if (!hasPointer[slot]) {
             hasPointer[slot] = true;
             previousPointerX[slot] = input.mouseX();
             previousPointerY[slot] = input.mouseY();
-            return Vector2.Zero;
+            return pointerDeltaScratch.setZero();
         }
 
-        float velocityX = (input.mouseX() - previousPointerX[slot]) / delta;
-        float velocityY = (input.mouseY() - previousPointerY[slot]) / delta;
+        pointerDeltaScratch.set(input.mouseX() - previousPointerX[slot],
+                                input.mouseY() - previousPointerY[slot])
+                           .limit(MAX_POINTER_STEP);
 
         previousPointerX[slot] = input.mouseX();
         previousPointerY[slot] = input.mouseY();
 
-        return new Vector2(velocityX, velocityY);
+        return pointerDeltaScratch;
     }
 
     /**

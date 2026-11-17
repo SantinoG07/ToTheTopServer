@@ -25,17 +25,41 @@ public class Arm {
     private static final float FOREARM_MASS_RATIO = 0.02f;
     private static final float HAND_MASS_RATIO = 0.01f;
 
-    private static final float MOUSE_SENSITIVITY = 0.1f;
-    private static final float VELOCITY_GAIN = 50f;
-    private static final float MAX_CONTROL_FORCE = 10000f;
+    /** Fraction of the pointer movement (meters) that moves the hand target. */
+    private static final float HAND_POINTER_SCALE = 0.2f;
+
+    /** How fast the hand closes the gap to its target, in 1/s. */
+    private static final float POSITION_GAIN = 12f;
+
+    /** Top speed the controller asks of the hand, in m/s. */
+    private static final float MAX_HAND_SPEED = 6f;
+
+    /**
+     * Share of the velocity error corrected in one physics step. The force is
+     * scaled by the hand mass and the step, so the loop stays stable for any
+     * mass or tick rate as long as this is below 2; below 1 it never overshoots.
+     */
+    private static final float VELOCITY_RESPONSE = 0.8f;
+
+    /** Ceiling of the force a hand can exert, in newtons. */
+    private static final float MAX_CONTROL_FORCE = 150f;
 
     private final Body hand;
     private final Body forearm;
     private final Body upperArm;
     private final Vector2 shoulderAnchor;
 
-    private final Vector2 targetVelocity = new Vector2();
-    private final Vector2 velocityError = new Vector2();
+    /** Distance from the shoulder joint to the hand center with the arm stretched. */
+    private final float reach;
+    /** Mass of the three segments, held up by the controller while driven. */
+    private final float armMass;
+
+    /** Hand target relative to the shoulder, moved by the pointer while driven. */
+    private final Vector2 targetOffset = new Vector2();
+    private boolean driven;
+
+    private final Vector2 target = new Vector2();
+    private final Vector2 desiredVelocity = new Vector2();
     private final Vector2 controlForce = new Vector2();
 
     private ArmState state = ArmState.FREE;
@@ -57,6 +81,9 @@ public class Arm {
         float armMass = weight * ARM_MASS_RATIO;
         float forearmMass = weight * FOREARM_MASS_RATIO;
         float handMass = weight * HAND_MASS_RATIO;
+        this.armMass = armMass + forearmMass + handMass;
+        // the shoulder joint sits half a width below the top of the arm
+        this.reach = size.y - (handSize.y / 2) - (size.x / 2);
 
         float armArea = armSize.x * armSize.y;
         float forearmArea = forearmSize.x * forearmSize.y;
@@ -183,26 +210,54 @@ public class Arm {
         return shoulderAnchor;
     }
 
-    public Vector2 update(Vector2 mouseVelocity) {
+    /**
+     * Force that moves the free hand toward its target for this step.
+     *
+     * <p>The target is the shoulder plus an offset. When the drive starts the
+     * offset is wherever the hand already is, so it never jumps; after that
+     * each pointer movement shifts it, clamped to the arm reach. Because the
+     * pointer is absolute, a lost or duplicated packet only delays the target
+     * instead of producing a speed spike.
+     *
+     * <p>The target becomes a capped desired velocity, and the force corrects
+     * a fixed share of the velocity error per step scaled by the hand mass.
+     * The arm weight is compensated, so a held hand does not sag.
+     *
+     * @param pointerDelta pointer movement since the previous step, in meters
+     * @param gravity      world gravity, in m/s²
+     * @param step         physics step, in seconds
+     */
+    public Vector2 drive(Vector2 pointerDelta, Vector2 gravity, float step) {
+        controlForce.setZero();
         if (state == ArmState.GRABBING) {
-            return new Vector2();
+            driven = false;
+            return controlForce;
         }
 
-        targetVelocity.set(mouseVelocity).scl(MOUSE_SENSITIVITY);
-
-        velocityError
-            .set(targetVelocity)
-            .sub(hand.getLinearVelocity());
-
-        controlForce
-            .set(velocityError)
-            .scl(VELOCITY_GAIN);
-
-        if (controlForce.len() > MAX_CONTROL_FORCE) {
-            controlForce.setLength(MAX_CONTROL_FORCE);
+        Vector2 shoulder = upperArm.getWorldPoint(shoulderAnchor);
+        if (!driven) {
+            driven = true;
+            targetOffset.set(hand.getPosition()).sub(shoulder);
         }
+
+        targetOffset.mulAdd(pointerDelta, HAND_POINTER_SCALE).limit(reach);
+        target.set(shoulder).add(targetOffset);
+
+        desiredVelocity.set(target).sub(hand.getPosition())
+            .scl(POSITION_GAIN)
+            .limit(MAX_HAND_SPEED);
+
+        controlForce.set(desiredVelocity).sub(hand.getLinearVelocity())
+            .scl(hand.getMass() * VELOCITY_RESPONSE / step)
+            .mulAdd(gravity, -armMass)
+            .limit(MAX_CONTROL_FORCE);
 
         return controlForce;
+    }
+
+    /** Lets the arm hang; the next drive starts from wherever the hand is. */
+    public void relax() {
+        driven = false;
     }
 
     public Body getForearm() {

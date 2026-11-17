@@ -58,6 +58,8 @@ public class Character {
 
     private final World world;
 
+    private final Vector2 pointerVelocity = new Vector2();
+
     /** Weight in kilograms, used to size the climbing pull. */
     private final float weight;
 
@@ -116,8 +118,8 @@ public class Character {
 
         this.head = ShapeFactory.createRectangle(headPosition, headSize, 0, BodyDef.BodyType.DynamicBody, world, headDensity, 1f, 0, false, groupIndex);
         this.torso = ShapeFactory.createRectangle(torsoPosition, torsoSize, 0, BodyDef.BodyType.DynamicBody, world, torsoDensity, 1f, 0, false, groupIndex);
-        this.leftArm = new Arm(leftArmPosition, armsSize, 0, BodyDef.BodyType.DynamicBody, world, armsDensity, 1f, 0, groupIndex, Sides.LEFT);
-        this.rightArm = new Arm(rightArmPosition, armsSize, 0, BodyDef.BodyType.DynamicBody, world, armsDensity, 1f, 0, groupIndex, Sides.RIGHT);
+        this.leftArm = new Arm(leftArmPosition, armsSize, 0, BodyDef.BodyType.DynamicBody, world, weight, 1f, 0, groupIndex, Sides.LEFT);
+        this.rightArm = new Arm(rightArmPosition, armsSize, 0, BodyDef.BodyType.DynamicBody, world, weight, 1f, 0, groupIndex, Sides.RIGHT);
         this.leftLeg = ShapeFactory.createRectangle(leftLegPosition, legsSize, 0, BodyDef.BodyType.DynamicBody, world, legsDensity, 1f, 0, false, groupIndex);
         this.rightLeg = ShapeFactory.createRectangle(rightLegPosition, legsSize, 0, BodyDef.BodyType.DynamicBody, world, legsDensity, 1f, 0, false, groupIndex);
 
@@ -256,15 +258,16 @@ public class Character {
     }
 
 
-    public void update(Vector2 mouseVelocity, boolean leftMousePressed, boolean rightMousePressed,
+    /**
+     * @param pointerDelta pointer movement since the previous step, in meters
+     * @param step         physics step, in seconds
+     */
+    public void update(Vector2 pointerDelta, float step, boolean leftMousePressed, boolean rightMousePressed,
                        boolean swingLeft, boolean swingRight) {
-        if (leftMousePressed) {
-            applyInternalArmForce(leftArm, mouseVelocity);
-        }
+        driveArm(leftArm, leftMousePressed, pointerDelta, step);
+        driveArm(rightArm, rightMousePressed, pointerDelta, step);
 
-        if (rightMousePressed) {
-            applyInternalArmForce(rightArm, mouseVelocity);
-        }
+        Vector2 mouseVelocity = pointerVelocity.set(pointerDelta).scl(1f / step);
 
         // While a hand holds the rock, dragging the pointer pulls the body in
         // that direction: this is the actual climbing stroke. Without a grip the
@@ -308,8 +311,17 @@ public class Character {
     }
 
 
-    private void applyInternalArmForce(Arm arm, Vector2 mouseVelocity) {
-        Vector2 force = arm.update(mouseVelocity);
+    /**
+     * Moves a hand while its button is held. The same force pushes the torso
+     * back, so the arm alone cannot lift or launch the body.
+     */
+    private void driveArm(Arm arm, boolean pressed, Vector2 pointerDelta, float step) {
+        if (!pressed) {
+            arm.relax();
+            return;
+        }
+
+        Vector2 force = arm.drive(pointerDelta, world.getGravity(), step);
 
         arm.getHand().applyForceToCenter(force, true);
 
