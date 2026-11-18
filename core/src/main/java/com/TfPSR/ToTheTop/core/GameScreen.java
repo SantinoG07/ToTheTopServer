@@ -6,6 +6,7 @@ import com.TfPSR.ToTheTop.asset.SoundAsset;
 import com.TfPSR.ToTheTop.entity.Character;
 import com.TfPSR.ToTheTop.map.GameMap;
 import com.TfPSR.ToTheTop.map.Rocks;
+import com.TfPSR.ToTheTop.menus.MainMenu;
 import com.TfPSR.ToTheTop.network.InputPacket;
 import com.TfPSR.ToTheTop.network.InputState;
 import com.TfPSR.ToTheTop.network.PartState;
@@ -83,6 +84,10 @@ public class GameScreen extends ScreenAdapter {
 
     private float accumulator = 0f;
 
+    /** Match this screen simulates; once the room moves on, the screen closes. */
+    private final int matchId;
+    private boolean disposed;
+
     public GameScreen(Main game, AssetService assetService) {
         this.game = game;
         this.camera = game.getCamera();
@@ -90,6 +95,7 @@ public class GameScreen extends ScreenAdapter {
         this.assetService = assetService;
         this.dash = assetService.get(SoundAsset.DASH);
         this.server = game.getServer();
+        this.matchId = server == null ? 0 : server.getMatchId();
 
         this.debugRenderer = new Box2DDebugRenderer();
         map = new GameMap("maps/map.tmx");
@@ -167,6 +173,14 @@ public class GameScreen extends ScreenAdapter {
 
     @Override
     public void render(float delta) {
+        // Every player left the result screen (or the match): the room is a lobby
+        // again, so this match is over for good and its world is freed (R6).
+        if (server != null && !server.isMatchActive(matchId)) {
+            game.setScreen(MainMenu.class);
+            dispose();
+            return;
+        }
+
         Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
@@ -273,6 +287,8 @@ public class GameScreen extends ScreenAdapter {
     private void finishMatch(byte result) {
         finished = true;
         matchResult = result;
+        if (server != null)
+            server.finishMatch(matchId);
         System.out.println(result == StatePacket.RESULT_WIN
                 ? "Partida terminada: un jugador llego a la cima"
                 : "Partida terminada: se acabo el tiempo");
@@ -432,5 +448,26 @@ public class GameScreen extends ScreenAdapter {
 
         camera.zoom = CAMERA_ZOOM;
         camera.update();
+    }
+
+    /**
+     * Frees the bodies, the Box2D world and the map of this match. Safe to call
+     * twice: the screen disposes itself when the room returns to the lobby, and
+     * the game disposes every cached screen again on exit.
+     */
+    @Override
+    public void dispose() {
+        if (disposed)
+            return;
+        disposed = true;
+
+        for (Character player : players) {
+            if (player != null)
+                player.dispose();
+        }
+        world.dispose();
+        debugRenderer.dispose();
+        mapRenderer.dispose();
+        map.getTiledMap().dispose();
     }
 }

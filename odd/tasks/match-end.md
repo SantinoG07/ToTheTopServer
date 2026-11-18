@@ -22,7 +22,7 @@ Repos: `servidor` and `cliente`, on `main`.
       (route: inline)
 - [x] M3 client `TimeWarningOverlay`: red vignette generated with a Pixmap, linear from 0 at
       30% time left to 1 at 0; center alpha 0.12, edges 0.6; hidden once finished (route: inline)
-- [ ] M4 R6: two consecutive matches (win and loss) without restarting programs
+- [x] M4 R6: done in `play-again.md` (play again, host migration); user tested OK
 
 ## Checks
 - `./gradlew syncMap` and `lwjgl3:processResources` OK in servidor.

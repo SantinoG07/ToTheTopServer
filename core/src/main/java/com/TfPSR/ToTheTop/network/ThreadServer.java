@@ -8,6 +8,17 @@ import java.util.Random;
 
 public class ThreadServer extends Thread {
 
+    /**
+     * Life cycle of the room. LOBBY waits for players; RUNNING simulates the
+     * match; FINISHED keeps sending the result until every player left the
+     * result screen (back to the room or out of the server), then the room is a
+     * LOBBY again, so a new match starts without restarting anything (R6).
+     */
+    public enum Phase { LOBBY, RUNNING, FINISHED }
+
+    /** ROSTER value of {@code hostSlot} when the room is empty. */
+    private static final int NO_HOST = 0xFF;
+
     private static final int MAX_CLIENTS = 4;
     private static final int MIN_CLIENTS = 2;
 
@@ -34,7 +45,12 @@ public class ThreadServer extends Thread {
     private volatile boolean running = true;
     private final NetworkDir[] clients = new NetworkDir[MAX_CLIENTS];
     private volatile int currentClients = 0;
-    private volatile boolean started = false;   // una vez en partida ya no se admiten cambios
+    private volatile Phase phase = Phase.LOBBY;
+    /** Increases with every match, so a match screen can tell it is stale. */
+    private volatile int matchId = 0;
+    /** Slot allowed to start the match, or -1 with an empty room. */
+    private volatile int hostSlot = -1;
+    private long nextJoinOrder = 0;
     private int nextSession = 1;                // ids de 1 a 255, nunca 0
 
     /**
@@ -63,9 +79,32 @@ public class ThreadServer extends Thread {
         return new String(roomCode, StandardCharsets.US_ASCII);
     }
 
-    /** True once the match started, so the server can switch to the players' screen. */
+    /** True while a match is being played, so the server can switch to the players' screen. */
     public boolean hasStarted() {
-        return started;
+        return phase == Phase.RUNNING;
+    }
+
+    /** Id of the current (or last) match. */
+    public int getMatchId() {
+        return matchId;
+    }
+
+    /** True while the match with that id is still running or showing its result. */
+    public boolean isMatchActive(int id) {
+        return phase != Phase.LOBBY && matchId == id;
+    }
+
+    /**
+     * Called by the match screen when the match is won or lost. From here on the
+     * room waits for every player to leave the result screen.
+     */
+    public synchronized void finishMatch(int id) {
+        if (phase != Phase.RUNNING || matchId != id)
+            return;
+        phase = Phase.FINISHED;
+        System.out.println("Partida terminada: esperando que los jugadores vuelvan a la sala");
+        updatePhase();
+        tryBroadcastRoster();
     }
 
     /** Number of clients currently connected, one player each. */
@@ -89,10 +128,14 @@ public class ThreadServer extends Thread {
      * only logged.
      */
     public void broadcastState(byte[] state) {
-        if (!started || state == null)
+        if (phase == Phase.LOBBY || state == null)
             return;
         try {
-            broadcast(state);
+            // A player already back in the room no longer needs the match state.
+            for (NetworkDir client : clients) {
+                if (client != null && !client.isInLobby())
+                    send(state, client.getIp(), client.getPort());
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -132,7 +175,9 @@ public class ThreadServer extends Thread {
             DatagramPacket dp = new DatagramPacket(buf, buf.length);
             try {
                 conection.receive(dp);
-                processMessage(dp);
+                synchronized (this) {
+                    processMessage(dp);
+                }
             } catch (SocketTimeoutException e) {
                 // the poll expired with no datagram; the silence check below
                 // still runs so an idle server notices an absent client
@@ -142,7 +187,9 @@ public class ThreadServer extends Thread {
                 return;
             }
 
-            dropSilentClients();
+            synchronized (this) {
+                dropSilentClients();
+            }
         }
     }
 
@@ -182,20 +229,21 @@ public class ThreadServer extends Thread {
             case NetworkHeaders.INPUT -> handleInput(dp);
             case NetworkHeaders.PING -> handlePing(dp);
             case NetworkHeaders.START_REQUEST -> handleStartRequest(dp);
+            case NetworkHeaders.RETURN_TO_LOBBY -> handleReturnToLobby(dp);
         }
     }
 
     /**
-     * Only the host, slot 0, starts the match, and only with at least two ready
-     * players. Any other request is ignored instead of answered, so a client
-     * cannot force a start by mistake or on purpose.
+     * Only the host starts the match, only from the room and only with at least
+     * two ready players. Any other request is ignored instead of answered, so a
+     * client cannot force a start by mistake or on purpose.
      */
     private void handleStartRequest(DatagramPacket dp) throws IOException {
         int slot = sessionSlot(dp);
-        if (slot == -1 || started)
+        if (slot == -1 || phase != Phase.LOBBY)
             return;
 
-        if (slot != 0) {
+        if (slot != hostSlot) {
             System.out.println("Inicio ignorado: el slot " + slot + " no es el anfitrion");
             return;
         }
@@ -203,9 +251,62 @@ public class ThreadServer extends Thread {
         if (countReady() < MIN_CLIENTS)
             return;
 
-        started = true;
+        for (NetworkDir client : clients) {
+            if (client != null) {
+                client.setInLobby(false);
+                client.setLastInput(null);
+            }
+        }
+        matchId++;
+        phase = Phase.RUNNING;
         System.out.println("Partida iniciada por el anfitrion con " + currentClients + " jugadores");
         broadcastStart();
+        broadcastRoster();
+    }
+
+    /**
+     * A player leaves the result screen and waits in the room. Ready is cleared
+     * so nobody starts the next match by accident. Repeated requests are fine:
+     * the client resends it until the roster shows it in the room.
+     */
+    private void handleReturnToLobby(DatagramPacket dp) throws IOException {
+        int slot = sessionSlot(dp);
+        if (slot == -1 || phase != Phase.FINISHED || clients[slot].isInLobby())
+            return;
+
+        clients[slot].setInLobby(true);
+        clients[slot].setReady(false);
+        clients[slot].setLastInput(null);
+        System.out.println("Slot " + slot + " volvio a la sala");
+        updatePhase();
+        broadcastRoster();
+    }
+
+    /**
+     * Moves the room back to LOBBY when nobody is left in the match: after a
+     * match, once every remaining player returned to the room; during a match,
+     * when every player left.
+     */
+    private void updatePhase() {
+        boolean allInLobby = true;
+        for (NetworkDir client : clients) {
+            if (client != null && !client.isInLobby())
+                allInLobby = false;
+        }
+
+        boolean backToLobby = (phase == Phase.FINISHED && allInLobby)
+                || (phase == Phase.RUNNING && currentClients == 0);
+        if (!backToLobby)
+            return;
+
+        phase = Phase.LOBBY;
+        for (NetworkDir client : clients) {
+            if (client != null) {
+                client.setInLobby(false);
+                client.setLastInput(null);
+            }
+        }
+        System.out.println("La sala vuelve a estar disponible para una nueva partida");
     }
 
     /** Occupied slots whose client already marked itself ready. */
@@ -232,7 +333,7 @@ public class ThreadServer extends Thread {
         // client that is still showing the lobby keeps pinging us; repeat its
         // own start notification here until it has received one.  This keeps
         // the lobby and the authoritative simulation from getting out of sync.
-        if (started) {
+        if (phase == Phase.RUNNING) {
             send(new byte[]{NetworkHeaders.START, ProtocolVersion.CURRENT,
                     (byte) clients[slot].getSession()}, dp.getAddress(), dp.getPort());
         }
@@ -256,7 +357,7 @@ public class ThreadServer extends Thread {
                 ProtocolVersion.CURRENT,
                 roomCode[0], roomCode[1], roomCode[2], roomCode[3],
                 (byte) currentClients,
-                (byte) (started ? 1 : 0),
+                (byte) (phase == Phase.RUNNING ? 1 : 0),
                 (byte) MAX_CLIENTS};
 
         send(announce, dp.getAddress(), dp.getPort());
@@ -267,8 +368,8 @@ public class ThreadServer extends Thread {
      * packet is validated, decoded and handed to the slot.
      */
     private void handleInput(DatagramPacket dp) throws IOException {
-        // Input only means something once the match is running.
-        if (!started)
+        // Input only means something while there is a match.
+        if (phase == Phase.LOBBY)
             return;
 
         int slot = findClient(dp);
@@ -281,6 +382,8 @@ public class ThreadServer extends Thread {
             return;
 
         clients[slot].touch();
+        if (clients[slot].isInLobby())
+            return;   // back in the room: a late input of the match is ignored
 
         InputState input = InputPacket.decode(dp.getData(), dp.getOffset(), dp.getLength());
         if (input == null) {
@@ -321,8 +424,8 @@ public class ThreadServer extends Thread {
         int slot = findClient(dp);
 
         if (slot == -1) {
-            if (started) {
-                // la partida ya arranco: no se incorporan jugadores nuevos
+            if (phase == Phase.RUNNING) {
+                // la partida esta en juego: no se incorporan jugadores nuevos
                 sendReject(dp, NetworkHeaders.REJECT_STARTED);
                 return;
             }
@@ -333,8 +436,12 @@ public class ThreadServer extends Thread {
                 return;
             }
             int session = nextSession();
-            clients[slot] = new NetworkDir(dp.getAddress(), dp.getPort(), session);
+            clients[slot] = new NetworkDir(dp.getAddress(), dp.getPort(), session, nextJoinOrder++);
+            // Joining while the others still see the result: this player waits in the room.
+            clients[slot].setInLobby(phase == Phase.FINISHED);
             currentClients++;
+            if (hostSlot == -1)
+                hostSlot = slot;
             System.out.println("Cliente conectado en slot " + slot + " sesion " + session
                     + " (" + dp.getAddress() + ":" + dp.getPort() + ")");
         } else {
@@ -360,7 +467,12 @@ public class ThreadServer extends Thread {
 
     private void handleReady(DatagramPacket dp, boolean ready) throws IOException {
         int slot = sessionSlot(dp);
-        if (slot == -1 || started)
+        if (slot == -1)
+            return;
+
+        // Ready only counts in the room, or after a match for a player already back in it.
+        boolean inRoom = phase == Phase.LOBBY || (phase == Phase.FINISHED && clients[slot].isInLobby());
+        if (!inRoom)
             return;
 
         clients[slot].setReady(ready);
@@ -393,12 +505,22 @@ public class ThreadServer extends Thread {
         }
     }
 
+    private void tryBroadcastRoster() {
+        try {
+            broadcastRoster();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     /**
-     * ROSTER: header, version, count, readyCount, then one entry per occupied
-     * slot with its ready flag, its palette colour and its name.
+     * ROSTER: header, version, count, readyCount, hostSlot (0xFF when none),
+     * phase (0 lobby, 1 running, 2 finished), then one entry per occupied slot
+     * with its flags (bit 0 ready, bit 1 back in the room after a match), its
+     * palette colour and its name.
      */
     private byte[] encodeRoster() {
-        int size = 4;
+        int size = 6;
 
         for (NetworkDir client : clients) {
             if (client == null)
@@ -413,6 +535,8 @@ public class ThreadServer extends Thread {
         buffer.put(ProtocolVersion.CURRENT);
         buffer.put((byte) currentClients);
         buffer.put((byte) readyCount);
+        buffer.put((byte) (hostSlot == -1 ? NO_HOST : hostSlot));
+        buffer.put((byte) phase.ordinal());
 
         for (int slot = 0; slot < MAX_CLIENTS; slot++) {
             NetworkDir client = clients[slot];
@@ -423,7 +547,7 @@ public class ThreadServer extends Thread {
             byte[] color = PALETTE[slot];
 
             buffer.put((byte) slot);
-            buffer.put((byte) (client.isReady() ? 1 : 0));
+            buffer.put((byte) ((client.isReady() ? 1 : 0) | (client.isInLobby() ? 2 : 0)));
             buffer.put(color[0]);
             buffer.put(color[1]);
             buffer.put(color[2]);
@@ -510,6 +634,24 @@ public class ThreadServer extends Thread {
             return;
         clients[slot] = null;
         currentClients--;
+
+        if (slot == hostSlot) {
+            hostSlot = earliestJoinedSlot();
+            if (hostSlot != -1)
+                System.out.println("El slot " + hostSlot + " es el nuevo anfitrion");
+        }
+        updatePhase();
+    }
+
+    /** Occupied slot whose client joined first, or -1 with an empty room. */
+    private int earliestJoinedSlot() {
+        int best = -1;
+        for (int slot = 0; slot < MAX_CLIENTS; slot++) {
+            NetworkDir client = clients[slot];
+            if (client != null && (best == -1 || client.getJoinOrder() < clients[best].getJoinOrder()))
+                best = slot;
+        }
+        return best;
     }
 
     private void broadcast(byte[] data) throws IOException {

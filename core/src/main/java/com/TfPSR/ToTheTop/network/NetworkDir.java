@@ -6,17 +6,22 @@ public class NetworkDir {
     private InetAddress ip;
     private int port;
     private final int session;
+    /** Order in which this client joined the room; the lowest one inherits the host. */
+    private final long joinOrder;
     private boolean ready;
+    /** After a match: true once the client left the result screen for the room. */
+    private boolean inLobby;
     private String name;
     private volatile InputState lastInput;
 
     /** Moment of the last datagram received from this client, in millis. */
     private volatile long lastSeen = System.currentTimeMillis();
 
-    public NetworkDir(InetAddress ip, int port, int session) {
+    public NetworkDir(InetAddress ip, int port, int session, long joinOrder) {
         this.ip = ip;
         this.port = port;
         this.session = session;
+        this.joinOrder = joinOrder;
         this.ready = false;
         this.name = "Player";
     }
@@ -51,6 +56,18 @@ public class NetworkDir {
 
     public int getPort() {
         return port;
+    }
+
+    public long getJoinOrder() {
+        return joinOrder;
+    }
+
+    public boolean isInLobby() {
+        return inLobby;
+    }
+
+    public void setInLobby(boolean inLobby) {
+        this.inLobby = inLobby;
     }
 
     public boolean isReady() {

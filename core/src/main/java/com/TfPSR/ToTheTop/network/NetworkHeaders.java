@@ -20,6 +20,8 @@ public final class NetworkHeaders {
     public static final byte DISCOVER = 0x06;
     public static final byte START_REQUEST = 0x07;
     public static final byte PING = 0x08;
+    /** After a match: the client leaves the result screen and waits in the room. */
+    public static final byte RETURN_TO_LOBBY = 0x09;
 
     // Server -> client
     public static final byte ACCEPT = 0x11;
