@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-down" width="30" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="8" nextobjectid="18">
+<map version="1.10" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-down" width="30" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="8" nextobjectid="19">
  <group id="3" name="Gameplay">
   <objectgroup id="7" name="Player">
    <object id="15" name="PlayerSpawn" type="SpawnPoints" x="826" y="424">
     <point/>
    </object>
+   <object id="18" name="Summit" type="Goal" x="640" y="-96" width="112" height="136"/>
   </objectgroup>
   <objectgroup id="4" name="Surface">
    <object id="2" name="Rock1" type="Rock" x="248.667" y="225.333">

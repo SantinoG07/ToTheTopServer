@@ -13,7 +13,9 @@ Repos: `servidor` and `cliente`, on `main`.
       `../cliente/assets/maps/*.tmx|*.tsx` before `processResources` (skipped when the client
       repo is absent; the committed copy is the fallback). Verified: a stale copy is restored
       by a build. (route: inline)
-- [ ] M1 summit as a Tiled rectangle `Summit` in the `Gameplay` group (server)
+- [x] M1 summit = Tiled rectangle `Summit` (Player layer) added above Rock5, sticking out
+      above the map top; `GameMap.getSummitArea`, `MatchEnd` checks head inside; fallback to
+      everything above the highest rock if the object is missing (route: inline)
 - [ ] M2 time limit (map property) + `RESULT_LOSE` + remaining time in state (protocol 4)
       + defeat screen (both repos)
 - [ ] M3 red edge tint in the last part of the time (client)

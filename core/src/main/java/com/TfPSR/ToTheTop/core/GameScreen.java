@@ -237,7 +237,7 @@ public class GameScreen extends ScreenAdapter {
 
         // The summit of the route ends the match: one last state announces the
         // win and the tick stops, so nothing else is simulated or sent.
-        if (MatchEnd.reachedSummit(headHeights(), map.getSummitY())) {
+        if (MatchEnd.reachedSummit(headPositions(), map.getSummitArea())) {
             finishMatch();
             return;
         }
@@ -245,15 +245,15 @@ public class GameScreen extends ScreenAdapter {
         sendState(StatePacket.MATCH_RUNNING, StatePacket.RESULT_NONE);
     }
 
-    /** Height of every simulated head, in meters; the head anchors the character. */
-    private float[] headHeights() {
-        float[] heights = new float[getPlayerCount()];
+    /** Position of every simulated head, in meters; the head anchors the character. */
+    private Vector2[] headPositions() {
+        Vector2[] heads = new Vector2[getPlayerCount()];
         int index = 0;
         for (Character player : players) {
             if (player != null)
-                heights[index++] = player.getPosition().y;
+                heads[index++] = player.getPosition();
         }
-        return heights;
+        return heads;
     }
 
     /** Sends the final state with the win and prevents any further tick. */
