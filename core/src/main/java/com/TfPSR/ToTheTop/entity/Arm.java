@@ -11,6 +11,7 @@ import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef;
 import com.badlogic.gdx.physics.box2d.World;
 import com.badlogic.gdx.physics.box2d.joints.RevoluteJoint;
+import com.badlogic.gdx.physics.box2d.joints.RopeJoint;
 
 public class Arm {
     private Sprite spriteUpperArm;
@@ -51,8 +52,20 @@ public class Arm {
 
     /** Distance from the shoulder joint to the hand center with the arm stretched. */
     private final float reach;
+    /** Distance from the shoulder joint to the fingertips with the arm stretched. */
+    private final float armLength;
     /** Mass of the three segments, held up by the controller while driven. */
     private final float armMass;
+
+    /** Torso this arm hangs from, and the shoulder point on it. */
+    private Body torso;
+    private Vector2 torsoAnchor;
+    /** Ties the shoulder to the grip point while grabbing, see {@link #grab}. */
+    private RopeJoint ropeJoint;
+
+    /** Part of the last pointer movement the arm could not follow, in meters. */
+    private final Vector2 reachOverflow = new Vector2();
+    private final Vector2 requestedOffset = new Vector2();
 
     /** Hand target relative to the shoulder, moved by the pointer while driven. */
     private final Vector2 targetOffset = new Vector2();
@@ -84,6 +97,7 @@ public class Arm {
         this.armMass = armMass + forearmMass + handMass;
         // the shoulder joint sits half a width below the top of the arm
         this.reach = size.y - (handSize.y / 2) - (size.x / 2);
+        this.armLength = size.y - (size.x / 2);
 
         float armArea = armSize.x * armSize.y;
         float forearmArea = forearmSize.x * forearmSize.y;
@@ -154,6 +168,18 @@ public class Arm {
         }
     }
 
+    /** Links the arm to the torso point its shoulder joint uses. */
+    public void attachTo(Body torso, Vector2 torsoAnchor) {
+        this.torso = torso;
+        this.torsoAnchor = new Vector2(torsoAnchor);
+    }
+
+    /**
+     * Holds the hand to the touched surface. Besides the wrist-to-rock joint, a
+     * rope ties the shoulder straight to the grip point with the arm length:
+     * the whole body hangs on that single link, so the light arm chain is never
+     * stretched apart by the much heavier torso.
+     */
     public void grab(World world) {
         if (state == ArmState.GRABBING) {
             return;
@@ -178,6 +204,9 @@ public class Arm {
             world
         );
 
+        if (torso != null)
+            ropeJoint = JointFactory.createRopeJoint(torso, contactedSurface, torsoAnchor, localSurfacePoint, armLength, world);
+
         state = ArmState.GRABBING;
     }
 
@@ -187,8 +216,11 @@ public class Arm {
         }
 
         world.destroyJoint(gripJoint);
+        if (ropeJoint != null)
+            world.destroyJoint(ropeJoint);
 
         gripJoint = null;
+        ropeJoint = null;
         state = ArmState.FREE;
     }
 
@@ -223,12 +255,17 @@ public class Arm {
      * a fixed share of the velocity error per step scaled by the hand mass.
      * The arm weight is compensated, so a held hand does not sag.
      *
+     * <p>Movement that would take the target past the reach is kept in
+     * {@link #getReachOverflow()}: while the other hand grips, the character
+     * uses it to pull the body up after the hand.
+     *
      * @param pointerDelta pointer movement since the previous step, in meters
      * @param gravity      world gravity, in m/s²
      * @param step         physics step, in seconds
      */
     public Vector2 drive(Vector2 pointerDelta, Vector2 gravity, float step) {
         controlForce.setZero();
+        reachOverflow.setZero();
         if (state == ArmState.GRABBING) {
             driven = false;
             return controlForce;
@@ -240,7 +277,9 @@ public class Arm {
             targetOffset.set(hand.getPosition()).sub(shoulder);
         }
 
-        targetOffset.mulAdd(pointerDelta, HAND_POINTER_SCALE).limit(reach);
+        requestedOffset.set(targetOffset).mulAdd(pointerDelta, HAND_POINTER_SCALE);
+        targetOffset.set(requestedOffset).limit(reach);
+        reachOverflow.set(requestedOffset).sub(targetOffset);
         target.set(shoulder).add(targetOffset);
 
         desiredVelocity.set(target).sub(hand.getPosition())
@@ -258,6 +297,12 @@ public class Arm {
     /** Lets the arm hang; the next drive starts from wherever the hand is. */
     public void relax() {
         driven = false;
+        reachOverflow.setZero();
+    }
+
+    /** Pointer movement of the last drive that went past the arm reach, in meters. */
+    public Vector2 getReachOverflow() {
+        return reachOverflow;
     }
 
     public Body getForearm() {

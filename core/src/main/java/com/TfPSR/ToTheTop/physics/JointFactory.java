@@ -5,6 +5,8 @@ import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.World;
 import com.badlogic.gdx.physics.box2d.joints.RevoluteJoint;
 import com.badlogic.gdx.physics.box2d.joints.RevoluteJointDef;
+import com.badlogic.gdx.physics.box2d.joints.RopeJoint;
+import com.badlogic.gdx.physics.box2d.joints.RopeJointDef;
 
 public class JointFactory {
     public JointFactory() {}
@@ -31,6 +33,19 @@ public class JointFactory {
         jointDef.upperAngle = (float) Math.toRadians(upperAngle);
 
         return (RevoluteJoint) world.createJoint(jointDef);
+    }
+
+    /** Keeps two anchors at most {@code maxLength} meters apart, leaving them free inside. */
+    public static RopeJoint createRopeJoint(Body bodyA, Body bodyB, Vector2 anchorA, Vector2 anchorB, float maxLength, World world) {
+        RopeJointDef jointDef = new RopeJointDef();
+        jointDef.bodyA = bodyA;
+        jointDef.bodyB = bodyB;
+        jointDef.collideConnected = true;
+        jointDef.localAnchorA.set(anchorA);
+        jointDef.localAnchorB.set(anchorB);
+        jointDef.maxLength = maxLength;
+
+        return (RopeJoint) world.createJoint(jointDef);
     }
 
 }

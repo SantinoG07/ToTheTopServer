@@ -46,22 +46,26 @@ public class Character {
     private static final float IMPULSE_SPEED = 2.2f;
 
     /**
-     * Force applied to the torso per (m/s) of pointer speed while a hand holds
-     * the rock. The arm servo alone only repositions the free hand: its force
-     * and the counter-force on the torso cancel out, so without this pull a
-     * gripped character could never lift its own weight.
+     * Climbing is a pull-up: while one hand grips and the other is dragged,
+     * the pointer movement the free arm cannot follow (past its reach) becomes
+     * the speed of the body. With no such movement the body holds its height.
      */
-    private static final float CLIMB_GAIN = 120f;
+    private static final float MAX_LIFT_SPEED = 2.5f;
 
-    /** Hard ceiling of the pull, as a multiple of the character weight. */
-    private static final float CLIMB_MAX_WEIGHT_FACTOR = 3f;
+    /** Share of the body velocity error corrected per step (whole ragdoll, keep low). */
+    private static final float LIFT_RESPONSE = 0.2f;
+
+    /** Smoothing of the lift speed between steps, so sparse pointer packets do not jerk the body. */
+    private static final float LIFT_SMOOTHING = 0.3f;
+
+    /** Ceiling of the lifting force, as a multiple of the character weight. */
+    private static final float LIFT_MAX_WEIGHT_FACTOR = 1.5f;
 
     private final World world;
 
-    private final Vector2 pointerVelocity = new Vector2();
+    /** Total mass of the ten bodies, in kilograms. */
+    private final float bodyMass;
 
-    /** Weight in kilograms, used to size the climbing pull. */
-    private final float weight;
 
     Vector2 position;
 
@@ -80,12 +84,13 @@ public class Character {
     /** The ten simulated bodies, in the order the state packet sends them. */
     private final Body[] parts;
 
-    /** Scratch vector of the climbing pull, reused every tick. */
-    private final Vector2 climbPull = new Vector2();
+    /** Smoothed lift speed requested by the free hand, in m/s. */
+    private final Vector2 liftVelocity = new Vector2();
+    private final Vector2 liftForce = new Vector2();
+    private final Vector2 liftTarget = new Vector2();
 
     public Character(Vector2 position, Vector2 size, float weight, World world) {
         this.position = position;
-        this.weight = weight;
 
         Vector2 headSize = new Vector2(size.x * HEAD_WIDTH_RATIO, size.y * HEAD_HEIGHT_RATIO);
         Vector2 torsoSize = new Vector2(size.x * CHEST_WIDTH_RATIO, size.y * CHEST_HEIGHT_RATIO);
@@ -140,6 +145,8 @@ public class Character {
         RevoluteJoint neckJoint = JointFactory.createRevoluteJoint(torso, head, false, torsoNeckAnchor, headNeckAnchor, world, -45, 45);
         RevoluteJoint leftShoulderJoint = JointFactory.createRevoluteJoint(torso, leftArm.getUpperArm(), false, leftShoulderAnchor, leftArm.getShoulderAnchor(), world);
         RevoluteJoint rightShoulderJoint = JointFactory.createRevoluteJoint(torso, rightArm.getUpperArm(), false, rightShoulderAnchor, rightArm.getShoulderAnchor(), world);
+        leftArm.attachTo(torso, leftShoulderAnchor);
+        rightArm.attachTo(torso, rightShoulderAnchor);
         RevoluteJoint leftLegJoint = JointFactory.createRevoluteJoint(torso, leftLeg, false, leftTorsoHipAnchor, leftLegHipAnchor, world, -90, 90);
         RevoluteJoint rightLegJoint = JointFactory.createRevoluteJoint(torso, rightLeg, false, rightTorsoHipAnchor, rightLegHipAnchor, world, -90, 90);
         this.spriteHead = createBodyPartSprite(headSize.x, headSize.y, "sprites/head.png");
@@ -157,6 +164,11 @@ public class Character {
             leftLeg,
             rightLeg
         };
+
+        float mass = 0f;
+        for (Body part : parts)
+            mass += part.getMass();
+        this.bodyMass = mass;
     }
 
     /** The ten simulated bodies, in the order the state packet sends them. */
@@ -267,13 +279,12 @@ public class Character {
         driveArm(leftArm, leftMousePressed, pointerDelta, step);
         driveArm(rightArm, rightMousePressed, pointerDelta, step);
 
-        Vector2 mouseVelocity = pointerVelocity.set(pointerDelta).scl(1f / step);
-
-        // While a hand holds the rock, dragging the pointer pulls the body in
-        // that direction: this is the actual climbing stroke. Without a grip the
-        // pull is skipped, so the character cannot swim through the air.
+        // The climbing stroke needs one hand on the rock and the other driven.
+        // Without a grip there is no lift, so the character cannot swim in the air.
         if (isGripping() && (leftMousePressed || rightMousePressed)) {
-            applyClimbPull(mouseVelocity);
+            applyLift(step);
+        } else {
+            liftVelocity.setZero();
         }
 
         // Wiki 3.7.5: A/D push the torso sideways, and only while a hand holds
@@ -287,29 +298,29 @@ public class Character {
     }
 
     /**
-     * Pulls the torso toward the pointer movement, anchored to the gripping
-     * hand. Capped to a few times the character weight so a flick of the mouse
-     * cannot launch the body.
-     *
-     * <p>The pull is remembered between input packets: at low frame rates the
-     * pointer only changes on some ticks, and without this the character would
-     * only be pulled on those few ticks and could never climb.
+     * Pull-up of the whole body. The overflow of the driven hand sets the
+     * desired speed; vertically the body otherwise holds its height (its weight
+     * is compensated), horizontally it stays free to swing unless the hand
+     * pulls sideways. The force is scaled by the body mass and capped, and the
+     * shoulder rope of the gripping arm keeps the limbs together.
      */
-    private void applyClimbPull(Vector2 pointerVelocity) {
-        if (pointerVelocity.len2() > 0.0001f) {
-            climbPull.set(pointerVelocity).scl(CLIMB_GAIN);
+    private void applyLift(float step) {
+        Vector2 overflow = leftArm.getReachOverflow();
+        float overflowX = overflow.x + rightArm.getReachOverflow().x;
+        float overflowY = overflow.y + rightArm.getReachOverflow().y;
 
-            float max = weight * 9.8f * CLIMB_MAX_WEIGHT_FACTOR;
-            if (climbPull.len2() > max * max)
-                climbPull.setLength(max);
-        } else {
-            // No fresh pointer data: keep the stroke alive for a few ticks.
-            climbPull.scl(0.85f);
-        }
+        liftVelocity.lerp(liftTarget.set(overflowX / step, overflowY / step), LIFT_SMOOTHING);
+        liftVelocity.limit(MAX_LIFT_SPEED);
 
-        torso.applyForceToCenter(climbPull, true);
+        Vector2 velocity = torso.getLinearVelocity();
+        float gain = bodyMass * LIFT_RESPONSE / step;
+
+        float forceX = Math.abs(overflowX) > 0f ? (liftVelocity.x - velocity.x) * gain : 0f;
+        float forceY = (liftVelocity.y - velocity.y) * gain - bodyMass * world.getGravity().y;
+
+        liftForce.set(forceX, forceY).limit(bodyMass * world.getGravity().len() * LIFT_MAX_WEIGHT_FACTOR);
+        torso.applyForceToCenter(liftForce, true);
     }
-
 
     /**
      * Moves a hand while its button is held. The same force pushes the torso

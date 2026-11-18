@@ -15,7 +15,7 @@ size/zoom (`viewport.unproject`), and per-tick pointer velocity spiked with UDP 
 - [x] T3 server: pass `weight` to `Arm`; `Character.update(pointerDelta, step, ...)` (route: inline)
 - [x] T4 server: validated `pointerDelta` (finite, max 2 m/tick) (route: inline)
 - [ ] T5 manual test: server + two clients, drag both hands, different window sizes
-- [ ] T6 commits (pending user authorization)
+- [x] T6 commits: servidor 6b7b59f, cliente d5ac670 (not pushed)
 
 ## Checks
 - `./gradlew core:compileJava` OK in both repos (2026-11-17).
