@@ -1,33 +1,186 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-down" width="30" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="8" nextobjectid="19">
+<map version="1.10" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-down" width="34" height="54" tilewidth="32" tileheight="32" infinite="0" nextlayerid="8" nextobjectid="101">
  <properties>
-  <property name="timeLimit" type="float" value="300"/>
+  <property name="timeLimit" type="float" value="360"/>
  </properties>
  <group id="3" name="Gameplay">
   <objectgroup id="7" name="Player">
-   <object id="15" name="PlayerSpawn" type="SpawnPoints" x="826" y="424">
+   <object id="1" name="PlayerSpawn" type="SpawnPoints" x="691" y="1619">
     <point/>
    </object>
-   <object id="18" name="Summit" type="Goal" x="640" y="-96" width="112" height="136"/>
+   <object id="2" name="Summit" type="Goal" x="480" y="51" width="128" height="115"/>
   </objectgroup>
   <objectgroup id="4" name="Surface">
-   <object id="2" name="Rock1" type="Rock" x="248.667" y="225.333">
-    <polygon points="29.3333,174.667 118,143.333 141.333,105.333 277.333,102.667 335.333,162.667 348.667,272 317.333,366.667 219.333,412.667 61.3333,393.333 19.3333,300.667"/>
+   <object id="3" name="Floor" type="Rock" x="-640" y="1665">
+    <polygon points="0,0 80,2 160,-2 240,2 320,-1 400,0 480,2 560,-1 640,3 720,0 800,2 880,2 960,0 1040,-4 1120,2 1200,1 1280,-2 1360,-4 1440,-2 1520,0 1600,-5 1680,2 1760,-4 1840,1 1920,2 2000,2 2080,0 2160,-3 2240,1 2320,-2 2368,-1 2368,95 0,95"/>
    </object>
-   <object id="3" name="Rock2" type="Rock" x="195.333" y="292.667">
-    <polygon points="0,0 62,36.6667 149.333,16.6667 124,-64.6667 76,-80.6667 48,-117.333 28.6667,-112.667 -8,-53.3333"/>
+   <object id="100" name="R0" type="Rock" x="576" y="1603">
+    <polygon points="0,0 4,-28 -51,-42 -98,-43 -115,-29 -95,2 -59,23 -17,12"/>
    </object>
-   <object id="11" name="Rock3" type="Rock" x="664" y="272">
-    <polygon points="0,0 -88,0 -152,-56 -192,-112 -264,-120 -272,-152 -136,-168 -72,-112 32,-72"/>
+   <object id="6" name="R2" type="Rock" x="964" y="1619">
+    <polygon points="0,0 -27,-21 -67,-36 -121,-22 -129,14 -108,40 -65,43 -26,32"/>
    </object>
-   <object id="14" name="Rock4" type="Rock" x="600" y="568">
-    <polygon points="0,0 32,-32 264,-32 296,32 208,56"/>
+   <object id="7" name="R3" type="Rock" x="650" y="1468">
+    <polygon points="0,0 -14,-29 -56,-34 -88,-31 -114,-13 -88,18 -64,25 -21,30"/>
    </object>
-   <object id="16" name="Rock5" type="Rock" x="920" y="536">
-    <polygon points="0,0 -64,-40 -64,-224 -120,-424 -264,-472 -192,-504 -8,-432"/>
+   <object id="8" name="R4" type="Rock" x="763" y="1390">
+    <polygon points="0,0 4,-29 -28,-28 -73,-31 -96,-8 -104,10 -97,32 -90,44 -60,45 -31,35 -7,18"/>
    </object>
-   <object id="17" name="Rock6" type="Rock" x="730" y="536">
-    <polygon points="0,0 12,-36 6,-66 22,-90 42,-100 58,-94 65,-76 65,0"/>
+   <object id="9" name="R5" type="Rock" x="769" y="1280">
+    <polygon points="0,0 -26,-18 -53,-23 -94,-20 -117,-5 -129,20 -117,30 -75,44 -52,34 -17,33"/>
+   </object>
+   <object id="10" name="R6" type="Rock" x="826" y="1201">
+    <polygon points="0,0 -11,-35 -21,-49 -41,-49 -52,-43 -60,-21 -62,20 -51,39 -36,34 -19,43 1,18"/>
+   </object>
+   <object id="11" name="R7" type="Rock" x="738" y="1130">
+    <polygon points="0,0 0,-38 -15,-52 -54,-44 -72,-23 -66,4 -40,16 -2,21"/>
+   </object>
+   <object id="12" name="R8" type="Rock" x="934" y="1176">
+    <polygon points="0,0 -11,-11 -36,-34 -64,-29 -75,-7 -68,14 -52,46 -25,40 -9,26"/>
+   </object>
+   <object id="13" name="R9" type="Rock" x="689" y="1015">
+    <polygon points="0,0 7,-20 -13,-32 -31,-35 -55,-36 -70,-24 -68,6 -58,22 -43,29 -17,32 -4,14"/>
+   </object>
+   <object id="14" name="R10" type="Rock" x="844" y="1031">
+    <polygon points="0,0 -17,-9 -40,-10 -77,-4 -91,12 -90,26 -72,29 -38,24 -12,13"/>
+   </object>
+   <object id="15" name="R11" type="Rock" x="701" y="912">
+    <polygon points="0,0 -19,-12 -67,-13 -89,-11 -130,1 -129,13 -91,26 -59,28 -27,16"/>
+   </object>
+   <object id="16" name="R12" type="Rock" x="715" y="817">
+    <polygon points="0,0 0,-25 -14,-53 -25,-49 -50,-46 -54,-10 -58,13 -58,42 -34,45 -20,47 2,37"/>
+   </object>
+   <object id="17" name="R13" type="Rock" x="619" y="777">
+    <polygon points="0,0 -6,-13 -16,-19 -40,-17 -47,-5 -46,19 -32,30 -17,33 0,21"/>
+   </object>
+   <object id="18" name="R14" type="Rock" x="834" y="946">
+    <polygon points="0,0 -6,-30 -23,-38 -45,-43 -52,-13 -58,5 -46,34 -25,35 -13,20"/>
+   </object>
+   <object id="19" name="R15" type="Rock" x="813" y="781">
+    <polygon points="0,0 -6,-12 -15,-17 -51,-23 -62,-19 -59,-8 -51,-3 -23,5 -6,6"/>
+   </object>
+   <object id="20" name="R16" type="Rock" x="643" y="710">
+    <polygon points="0,0 -2,-9 -32,-19 -54,-21 -76,-16 -78,-9 -60,3 -34,6 -15,3"/>
+   </object>
+   <object id="21" name="R17" type="Rock" x="853" y="682">
+    <polygon points="0,0 -3,-7 -19,-9 -41,-4 -53,8 -59,15 -49,26 -25,30 -7,24 7,12"/>
+   </object>
+   <object id="22" name="R18" type="Rock" x="634" y="594">
+    <polygon points="0,0 -14,-24 -27,-29 -38,-20 -47,4 -37,29 -21,37 -1,24"/>
+   </object>
+   <object id="23" name="R19" type="Rock" x="599" y="521">
+    <polygon points="0,0 -3,-23 -17,-34 -42,-31 -47,-16 -46,-3 -34,10 -15,7"/>
+   </object>
+   <object id="24" name="R20" type="Rock" x="533" y="437">
+    <polygon points="0,0 -6,-13 -13,-29 -34,-21 -45,-12 -50,12 -39,26 -14,31 -5,16"/>
+   </object>
+   <object id="25" name="R21" type="Rock" x="533" y="338">
+    <polygon points="0,0 -4,-25 -15,-33 -25,-33 -37,-29 -43,-9 -51,6 -38,26 -29,31 -20,29 -7,21"/>
+   </object>
+   <object id="26" name="R22" type="Rock" x="614" y="320">
+    <polygon points="0,0 -9,-12 -16,-19 -34,-20 -41,-5 -41,5 -36,21 -18,23 -5,15"/>
+   </object>
+   <object id="27" name="R23" type="Rock" x="704" y="450">
+    <polygon points="0,0 -1,-7 -31,-7 -42,-8 -68,-1 -83,9 -75,17 -62,19 -38,19 -23,17 -11,8"/>
+   </object>
+   <object id="28" name="R24" type="Rock" x="752" y="380">
+    <polygon points="0,0 -6,-12 -16,-26 -31,-27 -52,-33 -66,-26 -63,-14 -56,-6 -41,4 -28,6 -14,8"/>
+   </object>
+   <object id="29" name="R25" type="Rock" x="745" y="695">
+    <polygon points="0,0 -2,-14 -20,-25 -43,-22 -46,-12 -40,5 -27,6 -11,7"/>
+   </object>
+   <object id="30" name="R26" type="Rock" x="827" y="341">
+    <polygon points="0,0 -4,-28 -19,-41 -36,-25 -43,-6 -39,14 -20,21 -11,11"/>
+   </object>
+   <object id="31" name="R27" type="Rock" x="892" y="863">
+    <polygon points="0,0 7,-14 -28,-23 -75,-30 -102,-21 -91,-5 -70,11 -48,15 -7,9"/>
+   </object>
+   <object id="32" name="R28" type="Rock" x="947" y="648">
+    <polygon points="0,0 -12,-26 -31,-22 -48,-19 -63,-5 -50,18 -42,31 -23,33 -3,23"/>
+   </object>
+   <object id="33" name="R29" type="Rock" x="538" y="641">
+    <polygon points="0,0 -6,-8 -17,-23 -25,-20 -32,-11 -31,-1 -33,15 -24,28 -12,30 -7,26 5,16"/>
+   </object>
+   <object id="34" name="R30" type="Rock" x="811" y="609">
+    <polygon points="0,0 -11,-21 -15,-33 -29,-38 -40,-24 -45,-12 -49,6 -41,20 -30,31 -14,30 -9,19"/>
+   </object>
+   <object id="35" name="R31" type="Rock" x="959" y="566">
+    <polygon points="0,0 -22,-9 -47,-18 -75,-10 -98,-5 -104,5 -86,15 -42,17 -15,9"/>
+   </object>
+   <object id="36" name="R32" type="Rock" x="446" y="395">
+    <polygon points="0,0 -10,-18 -20,-22 -35,-32 -42,-7 -45,9 -41,27 -22,42 -5,41 -3,24"/>
+   </object>
+   <object id="37" name="R33" type="Rock" x="878" y="456">
+    <polygon points="0,0 -16,-21 -27,-27 -40,-24 -49,-9 -48,18 -36,29 -21,47 -10,30 3,25"/>
+   </object>
+   <object id="38" name="R34" type="Rock" x="706" y="568">
+    <polygon points="0,0 -6,-15 -13,-27 -24,-23 -31,-8 -35,0 -25,16 -13,32 -3,23 2,18"/>
+   </object>
+   <object id="39" name="R35" type="Rock" x="474" y="596">
+    <polygon points="0,0 -3,-7 -20,-8 -39,-9 -51,-2 -60,5 -53,14 -40,15 -17,9 -1,6"/>
+   </object>
+   <object id="40" name="R36" type="Rock" x="991" y="1101">
+    <polygon points="0,0 -29,-20 -56,-34 -103,-35 -126,-26 -115,-8 -61,10 -24,16"/>
+   </object>
+   <object id="41" name="R37" type="Rock" x="466" y="1496">
+    <polygon points="0,0 -26,-16 -38,-31 -68,-15 -105,3 -118,20 -109,48 -85,49 -61,56 -27,47 4,27"/>
+   </object>
+   <object id="42" name="R38" type="Rock" x="658" y="1213">
+    <polygon points="0,0 -1,-9 -36,-17 -83,-10 -93,1 -105,17 -78,22 -37,23 -4,15"/>
+   </object>
+   <object id="43" name="R39" type="Rock" x="625" y="1118">
+    <polygon points="0,0 -13,-27 -32,-32 -57,-20 -62,6 -41,44 -22,45 -8,40"/>
+   </object>
+   <object id="44" name="R40" type="Rock" x="572" y="1034">
+    <polygon points="0,0 -7,-8 -32,-11 -70,-14 -94,-9 -104,5 -112,20 -84,28 -51,30 -18,25 -4,16"/>
+   </object>
+   <object id="45" name="R41" type="Rock" x="1020" y="801">
+    <polygon points="0,0 -6,-23 -38,-35 -63,-32 -93,-21 -109,-6 -106,10 -88,21 -56,27 -30,32 -13,17"/>
+   </object>
+   <object id="46" name="R42" type="Rock" x="518" y="939">
+    <polygon points="0,0 -10,-21 -24,-40 -37,-36 -53,-17 -63,25 -57,40 -31,44 -13,30"/>
+   </object>
+   <object id="47" name="R43" type="Rock" x="982" y="997">
+    <polygon points="0,0 -8,-35 -22,-40 -39,-38 -50,-14 -57,8 -42,31 -25,34 -5,30"/>
+   </object>
+   <object id="48" name="R44" type="Rock" x="423" y="937">
+    <polygon points="0,0 -4,-39 -17,-45 -34,-30 -45,-8 -36,22 -24,34 -11,22"/>
+   </object>
+   <object id="49" name="R45" type="Rock" x="563" y="859">
+    <polygon points="0,0 3,-14 -34,-33 -62,-39 -101,-47 -123,-45 -120,-31 -103,-14 -81,-1 -50,3 -5,9"/>
+   </object>
+   <object id="50" name="R46" type="Rock" x="533" y="1165">
+    <polygon points="0,0 -12,-25 -32,-30 -48,-10 -56,11 -39,45 -17,55 -1,31"/>
+   </object>
+   <object id="51" name="R47" type="Rock" x="451" y="1135">
+    <polygon points="0,0 -3,-19 -30,-29 -57,-27 -68,-17 -76,2 -62,15 -37,21 -5,10"/>
+   </object>
+   <object id="52" name="R48" type="Rock" x="404" y="845">
+    <polygon points="0,0 -22,-13 -65,-16 -122,-12 -145,3 -127,18 -71,24 -33,22"/>
+   </object>
+   <object id="53" name="R49" type="Rock" x="1021" y="1509">
+    <polygon points="0,0 -25,-19 -81,-15 -116,-9 -148,14 -168,27 -137,38 -101,39 -53,36 -6,13"/>
+   </object>
+   <object id="54" name="R50" type="Rock" x="521" y="1426">
+    <polygon points="0,0 -16,-21 -49,-49 -82,-58 -144,-67 -148,-52 -150,-35 -136,-15 -93,-1 -49,10 -27,2"/>
+   </object>
+   <object id="55" name="R51" type="Rock" x="968" y="1432">
+    <polygon points="0,0 2,-18 -32,-23 -83,-23 -134,-14 -136,3 -121,14 -90,28 -43,30 2,21"/>
+   </object>
+   <object id="56" name="R52" type="Rock" x="518" y="1269">
+    <polygon points="0,0 -42,-21 -71,-33 -101,-12 -125,17 -120,41 -105,58 -58,44 -19,20"/>
+   </object>
+   <object id="57" name="R53" type="Rock" x="969" y="1299">
+    <polygon points="0,0 -30,-7 -66,-15 -114,-11 -142,8 -161,21 -177,39 -133,47 -83,41 -58,42 -2,17"/>
+   </object>
+   <object id="58" name="R54" type="Rock" x="341" y="1352">
+    <polygon points="0,0 0,-19 -29,-29 -73,-15 -105,3 -105,32 -77,40 -59,43 -22,42 -10,23"/>
+   </object>
+   <object id="59" name="R55" type="Rock" x="237" y="1286">
+    <polygon points="0,0 -33,-48 -67,-38 -90,-15 -100,10 -83,42 -37,59 -25,36"/>
+   </object>
+   <object id="60" name="S" type="Rock" x="566" y="226">
+    <polygon points="0,0 -2,-21 -14,-47 -34,-41 -47,-30 -55,-2 -45,25 -31,39 -17,49 -2,35"/>
    </object>
   </objectgroup>
  </group>
