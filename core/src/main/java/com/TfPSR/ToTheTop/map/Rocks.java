@@ -59,19 +59,23 @@ public class Rocks {
             );
 
             // Convertimos los vértices de mundo -> local
-            for(Vector2 vertex : vertices) {
-                vertex.sub(rockPosition);
+            float[] localVertices = new float[vertices.length * 2];
+            for(int i = 0; i < vertices.length; i++) {
+                localVertices[i * 2] = vertices[i].x - rockPosition.x;
+                localVertices[i * 2 + 1] = vertices[i].y - rockPosition.y;
             }
 
-            Body body = ShapeFactory.createClosedChain(
+            // Solid (triangulated) instead of a hollow chain loop: Tiled can
+            // still draw any concave shape, and a limb that gets pushed into
+            // the rock is pushed back out instead of getting trapped inside.
+            Body body = ShapeFactory.createSolidPolygon(
                 rockPosition,
-                vertices,
+                localVertices,
                 BodyDef.BodyType.StaticBody,
                 world,
                 0,
                 1f,
                 0f,
-                false,
                 (short) -2
             );
 

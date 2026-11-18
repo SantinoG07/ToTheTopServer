@@ -32,12 +32,16 @@ public class Character {
     private static final float LEGS_WIDTH_RATIO = 0.25f;
     private static final float LEGS_HEIGHT_RATIO = 0.5f;
 
+    // Share of the weight per body; each arm adds 0.15 (see Arm), total 1.0.
+    // The torso is lighter and the limbs heavier than a real body to keep
+    // jointed bodies within ~1:10 of each other, which Box2D needs to stay stable.
     private static final float HEAD_MASS_RATIO = 0.08f;
-    private static final float TORSO_MASS_RATIO = 0.50f;
+    private static final float TORSO_MASS_RATIO = 0.34f;
 
-    private static final float ARM_MASS_RATIO = 0.03f;
+    private static final float LEG_MASS_RATIO = 0.14f;
 
-    private static final float LEG_MASS_RATIO = 0.15f;
+    /** Torso share the impulse was tuned with; keeps the jump height after the rebalance. */
+    private static final float IMPULSE_MASS_RATIO = 0.5f;
 
     /** Lateral push applied to the torso by A/D while a hand is gripping. */
     private static final float SWING_FORCE = 400f;
@@ -60,6 +64,13 @@ public class Character {
 
     /** Ceiling of the lifting force, as a multiple of the character weight. */
     private static final float LIFT_MAX_WEIGHT_FACTOR = 1.5f;
+
+    /**
+     * A grip whose averaged force passes this multiple of the character weight
+     * slips. Hanging costs 1x and a pull-up under 3x; catching a fall at
+     * ~30 m/s still stays below, so only a sustained, explosive pull reaches it.
+     */
+    private static final float GRIP_BREAK_WEIGHT_FACTOR = 12f;
 
     private final World world;
 
@@ -106,17 +117,14 @@ public class Character {
 
         float headMass = weight * HEAD_MASS_RATIO;
         float torsoMass = weight * TORSO_MASS_RATIO;
-        float armsMass = weight * ARM_MASS_RATIO;
         float legMass = weight * LEG_MASS_RATIO;
 
         float headArea = headSize.x * headSize.y;
         float torsoArea = torsoSize.x * torsoSize.y;
-        float armArea = armsSize.x * armsSize.y;
         float legArea = legsSize.x * legsSize.y;
 
         float headDensity = headMass / headArea;
         float torsoDensity = torsoMass / torsoArea;
-        float armsDensity = armsMass / armArea;
         float legsDensity = legMass / legArea;
 
         this.world = world;
@@ -219,7 +227,7 @@ public class Character {
             return false;
 
         Vector2 center = torso.getWorldCenter();
-        torso.applyLinearImpulse(0f, IMPULSE_SPEED * torso.getMass(),
+        torso.applyLinearImpulse(0f, IMPULSE_SPEED * bodyMass * IMPULSE_MASS_RATIO,
                 center.x, center.y, true);
         return true;
     }
@@ -276,6 +284,10 @@ public class Character {
      */
     public void update(Vector2 pointerDelta, float step, boolean leftMousePressed, boolean rightMousePressed,
                        boolean swingLeft, boolean swingRight) {
+        float gripLimit = bodyMass * world.getGravity().len() * GRIP_BREAK_WEIGHT_FACTOR;
+        leftArm.releaseIfOverloaded(world, step, gripLimit);
+        rightArm.releaseIfOverloaded(world, step, gripLimit);
+
         driveArm(leftArm, leftMousePressed, pointerDelta, step);
         driveArm(rightArm, rightMousePressed, pointerDelta, step);
 

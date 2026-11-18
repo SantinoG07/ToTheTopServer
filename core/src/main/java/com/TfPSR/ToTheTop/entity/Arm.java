@@ -22,9 +22,13 @@ public class Arm {
     private static final float FOREARM_HEIGHT_RATIO = 0.4f;
     private static final float HAND_HEIGHT_RATIO = 0.13f;
 
-    private static final float ARM_MASS_RATIO = 0.03f;
-    private static final float FOREARM_MASS_RATIO = 0.02f;
-    private static final float HAND_MASS_RATIO = 0.01f;
+    // Share of the character weight per segment (see Character for the whole
+    // split). Heavier than a real arm on purpose: Box2D chains stay stable when
+    // jointed bodies are within ~1:10 of each other, and a real hand is 1:50
+    // of the torso. The controllers scale with mass, so the feel is the same.
+    private static final float ARM_MASS_RATIO = 0.06f;
+    private static final float FOREARM_MASS_RATIO = 0.05f;
+    private static final float HAND_MASS_RATIO = 0.04f;
 
     /** Fraction of the pointer movement (meters) that moves the hand target. */
     private static final float HAND_POINTER_SCALE = 0.2f;
@@ -42,8 +46,15 @@ public class Arm {
      */
     private static final float VELOCITY_RESPONSE = 0.8f;
 
-    /** Ceiling of the force a hand can exert, in newtons. */
-    private static final float MAX_CONTROL_FORCE = 150f;
+    /**
+     * Time over which the grip force is averaged before judging an overload,
+     * in seconds. Catching a fall is a huge but one-tick peak; a ragdoll being
+     * torn apart is a huge force that lasts, and only that should make it slip.
+     */
+    private static final float GRIP_STRAIN_TIME = 0.3f;
+
+    /** Ceiling of the force a hand can exert, as a multiple of the arm weight. */
+    private static final float MAX_CONTROL_WEIGHT_FACTOR = 3f;
 
     private final Body hand;
     private final Body forearm;
@@ -78,8 +89,13 @@ public class Arm {
     private ArmState state = ArmState.FREE;
 
     private Body contactedSurface;
-    private Vector2 contactPoint;
+    private final Vector2 contactPoint = new Vector2();
+    private int surfaceContacts;
+    /** Farthest a contact point can be from the hand center and still be grabbed. */
+    private final float gripTolerance;
     private RevoluteJoint gripJoint;
+    /** Grip force averaged over {@link #GRIP_STRAIN_TIME}, in newtons. */
+    private float gripStrain;
 
     public Arm(Vector2 position, Vector2 size, float angle, BodyDef.BodyType type, World world, float weight, float friction, float restitution, short groupIndex, Sides side) {
 
@@ -98,6 +114,7 @@ public class Arm {
         // the shoulder joint sits half a width below the top of the arm
         this.reach = size.y - (handSize.y / 2) - (size.x / 2);
         this.armLength = size.y - (size.x / 2);
+        this.gripTolerance = handSize.len();
 
         float armArea = armSize.x * armSize.y;
         float forearmArea = forearmSize.x * forearmSize.y;
@@ -150,22 +167,31 @@ public class Arm {
         sprite.setRotation((float) Math.toDegrees(body.getAngle()));
     }
 
+    /**
+     * A rock started touching the hand. Contacts are counted because a rock
+     * outline is made of many edges and the hand can touch several at once.
+     */
     public void setSurfaceContact(Body surface, Vector2 point) {
+        surfaceContacts++;
         contactedSurface = surface;
-        contactPoint = new Vector2(point);
+        contactPoint.set(point);
     }
 
+    /**
+     * A rock stopped touching the hand. It is tracked in every state: a contact
+     * that ends while gripping must not survive until the next grab, or the
+     * hand would latch onto a point it no longer touches.
+     */
     public void clearSurfaceContact(Body surface) {
-        if (contactedSurface == surface && state == ArmState.FREE) {
+        surfaceContacts = Math.max(0, surfaceContacts - 1);
+        if (surfaceContacts == 0)
             contactedSurface = null;
-            contactPoint = null;
-        }
     }
 
+    /** Refreshes the touched point every step the hand stays on a rock. */
     public void updateSurfaceContact(Body surface, Vector2 point) {
-        if (state == ArmState.FREE && contactedSurface == surface) {
-            contactPoint.set(point);
-        }
+        contactedSurface = surface;
+        contactPoint.set(point);
     }
 
     /** Links the arm to the torso point its shoulder joint uses. */
@@ -185,7 +211,8 @@ public class Arm {
             return;
         }
 
-        if (contactedSurface == null || contactPoint == null) {
+        // Only a rock the hand touches right now, at a point on the hand itself.
+        if (contactedSurface == null || hand.getPosition().dst(contactPoint) > gripTolerance) {
             return;
         }
 
@@ -207,6 +234,7 @@ public class Arm {
         if (torso != null)
             ropeJoint = JointFactory.createRopeJoint(torso, contactedSurface, torsoAnchor, localSurfacePoint, armLength, world);
 
+        gripStrain = 0f;
         state = ArmState.GRABBING;
     }
 
@@ -289,7 +317,7 @@ public class Arm {
         controlForce.set(desiredVelocity).sub(hand.getLinearVelocity())
             .scl(hand.getMass() * VELOCITY_RESPONSE / step)
             .mulAdd(gravity, -armMass)
-            .limit(MAX_CONTROL_FORCE);
+            .limit(armMass * gravity.len() * MAX_CONTROL_WEIGHT_FACTOR);
 
         return controlForce;
     }
@@ -298,6 +326,30 @@ public class Arm {
     public void relax() {
         driven = false;
         reachOverflow.setZero();
+    }
+
+    /**
+     * Lets go when the averaged grip force passes {@code maxForce}, like a hand
+     * slipping. The average lets a hand catch a fast fall (a short peak) while
+     * still releasing a sustained, explosive pull. The joints would otherwise transmit any force, and an extreme
+     * one (a hard fall, a body shoved into the rock) tears the ragdoll apart.
+     *
+     * @return true if the hand let go
+     */
+    public boolean releaseIfOverloaded(World world, float step, float maxForce) {
+        if (state != ArmState.GRABBING)
+            return false;
+
+        float inverseStep = 1f / step;
+        float gripForce = gripJoint.getReactionForce(inverseStep).len();
+        float ropeForce = ropeJoint == null ? 0f : ropeJoint.getReactionForce(inverseStep).len();
+        float force = Math.max(gripForce, ropeForce);
+        gripStrain += (force - gripStrain) * Math.min(1f, step / GRIP_STRAIN_TIME);
+        if (gripStrain <= maxForce)
+            return false;
+
+        release(world);
+        return true;
     }
 
     /** Pointer movement of the last drive that went past the arm reach, in meters. */
