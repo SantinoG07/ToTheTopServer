@@ -7,6 +7,6 @@ package com.TfPSR.ToTheTop.network;
  */
 public record InputState(float mouseX, float mouseY,
                          boolean left, boolean right,
-                         boolean a, boolean d,
+                         boolean a, boolean d, boolean w,
                          int events) {
 }

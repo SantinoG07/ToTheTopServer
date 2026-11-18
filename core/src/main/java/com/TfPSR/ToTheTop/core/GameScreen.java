@@ -299,9 +299,10 @@ public class GameScreen extends ScreenAdapter {
             return;
         }
 
-        // Wiki 3.7.4: the impulse is a small jump from the torso.
+        // Wiki 3.7.4: the impulse is a small jump from the torso, aimed with
+        // the keys held on the tick it arrives.
         if ((pressedEvents & InputPacket.EVENT_IMPULSE) != 0)
-            player.impulse();
+            player.impulse(input.a(), input.d(), input.w());
 
         Vector2 pointerDelta = pointerDelta(slot, input);
 

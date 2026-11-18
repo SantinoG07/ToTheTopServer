@@ -20,6 +20,7 @@ public final class InputPacket {
 
     public static final int KEY_A = 1;
     public static final int KEY_D = 1 << 1;
+    public static final int KEY_W = 1 << 2;
 
     /** One-off events: the client repeats each bit for a few ticks. */
     public static final int EVENT_IMPULSE = 1;
@@ -63,6 +64,7 @@ public final class InputPacket {
                 (buttons & BUTTON_RIGHT) != 0,
                 (keys & KEY_A) != 0,
                 (keys & KEY_D) != 0,
+                (keys & KEY_W) != 0,
                 events & 0xFF);
     }
 }

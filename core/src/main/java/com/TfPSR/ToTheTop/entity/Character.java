@@ -7,6 +7,7 @@ import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.Sprite;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef;
@@ -40,9 +41,6 @@ public class Character {
 
     private static final float LEG_MASS_RATIO = 0.14f;
 
-    /** Torso share the impulse was tuned with; keeps the jump height after the rebalance. */
-    private static final float IMPULSE_MASS_RATIO = 0.5f;
-
     /**
      * Wiki 3.7.5: A/D swing the hanging body like a child on a swing. The push
      * is a small share of the weight and grows while the key is held, so
@@ -56,11 +54,27 @@ public class Character {
     /** Above this sideways speed (m/s) the push stops, so the swing cannot grow without end. */
     private static final float MAX_SWING_SPEED = 4f;
 
+    /** Angle above the horizontal of an impulse aimed with A or D, in degrees. */
+    private static final float IMPULSE_DIAGONAL_ANGLE = 45f;
+
+    /** Angle above the horizontal of an impulse aimed with W plus A or D, in degrees. */
+    private static final float IMPULSE_STEEP_ANGLE = 65f;
+
+    /**
+     * Seconds the impulse pushes the torso for. A short push instead of an
+     * instant kick lets the torso drag the limbs along naturally without
+     * yanking the joints.
+     */
+    private static final float IMPULSE_PUSH_TIME = 0.12f;
+
     /** Seconds between two impulses, so the character cannot hop its way along. */
     private static final float IMPULSE_COOLDOWN = 2f;
 
-    /** Vertical take-off speed of the impulse of wiki 3.7.4, in m/s. */
-    private static final float IMPULSE_SPEED = 2.2f;
+    /**
+     * Take-off speed of the whole body in the impulse of wiki 3.7.4, in m/s.
+     * 5 m/s rises about 1.3 m straight up and reaches about 2.5 m on a 45 deg jump.
+     */
+    private static final float IMPULSE_SPEED = 5f;
 
     /**
      * Climbing is a pull-up: while one hand grips and the other is dragged,
@@ -123,6 +137,9 @@ public class Character {
     private float swingDirection;
     /** Seconds left before the next impulse is allowed. */
     private float impulseCooldown;
+    /** Force of the impulse in progress and the seconds it still pushes for. */
+    private final Vector2 impulseForce = new Vector2();
+    private float impulsePushTime;
     private final Vector2 reactionForce = new Vector2();
 
     public Character(Vector2 position, Vector2 size, float weight, World world, short groupIndex) {
@@ -262,16 +279,24 @@ public class Character {
      * the character rests on a surface, never while hanging or falling, and
      * once every {@link #IMPULSE_COOLDOWN} seconds.
      *
+     * <p>It is aimed with the held keys: none or W jump straight up, A or D
+     * jump diagonally to that side, and W with A or D makes that diagonal
+     * steeper. Opposite keys cancel out. S is not used.
+     *
      * @return true when the impulse was applied
      */
-    public boolean impulse() {
+    public boolean impulse(boolean left, boolean right, boolean up) {
         if (!isResting() || isGripping() || impulseCooldown > 0f)
             return false;
 
         impulseCooldown = IMPULSE_COOLDOWN;
-        Vector2 center = torso.getWorldCenter();
-        torso.applyLinearImpulse(0f, IMPULSE_SPEED * bodyMass * IMPULSE_MASS_RATIO,
-                center.x, center.y, true);
+        float side = (right ? 1f : 0f) - (left ? 1f : 0f);
+        float angle = side == 0f ? 90f : (up ? IMPULSE_STEEP_ANGLE : IMPULSE_DIAGONAL_ANGLE);
+        // Only the torso is pushed, with the momentum the whole body needs to
+        // take off at IMPULSE_SPEED; the limbs follow through their joints.
+        float force = bodyMass * IMPULSE_SPEED / IMPULSE_PUSH_TIME;
+        impulseForce.set(side * MathUtils.cosDeg(angle), MathUtils.sinDeg(angle)).scl(force);
+        impulsePushTime = IMPULSE_PUSH_TIME;
         return true;
     }
 
@@ -343,7 +368,20 @@ public class Character {
         }
 
         impulseCooldown = Math.max(0f, impulseCooldown - step);
+        applyImpulsePush(step);
         applySwing(swingLeft, swingRight, step);
+    }
+
+    /** Keeps pushing the torso while the impulse started by {@link #impulse} lasts. */
+    private void applyImpulsePush(float step) {
+        if (impulsePushTime <= 0f)
+            return;
+
+        // The last tick may be shorter than a full step: scale it so the total
+        // momentum is exactly the one requested.
+        float share = Math.min(step, impulsePushTime) / step;
+        impulsePushTime -= step;
+        torso.applyForceToCenter(impulseForce.x * share, impulseForce.y * share, true);
     }
 
     /**
