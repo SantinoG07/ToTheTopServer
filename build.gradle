@@ -25,6 +25,17 @@ allprojects {
   }
 }
 
+// The map is designed once, in the client repository (cliente/assets/maps),
+// and copied here before every build or run, so client and server always load
+// the same rocks. When the client repository is not next to this one, the copy
+// already committed here is used.
+def clientMaps = file("${rootDir}/../cliente/assets/maps")
+tasks.register('syncMap', Copy) {
+  onlyIf { clientMaps.isDirectory() }
+  from(clientMaps) { include '*.tmx', '*.tsx' }
+  into "${rootDir}/assets/maps"
+}
+
 configure(subprojects) {
   apply plugin: 'java-library'
   java.sourceCompatibility = 21
@@ -48,6 +59,7 @@ configure(subprojects) {
     }
   }
   processResources.dependsOn 'generateAssetList'
+  processResources.dependsOn rootProject.tasks.named('syncMap')
 
   compileJava {
     options.incremental = true

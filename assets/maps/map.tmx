@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-down" width="30" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="8" nextobjectid="17">
+<map version="1.10" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-down" width="30" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="8" nextobjectid="18">
  <group id="3" name="Gameplay">
   <objectgroup id="7" name="Player">
-   <object id="15" name="PlayerSpawn" type="SpawnPoints" x="752" y="424">
+   <object id="15" name="PlayerSpawn" type="SpawnPoints" x="826" y="424">
     <point/>
    </object>
   </objectgroup>
@@ -21,6 +21,9 @@
    </object>
    <object id="16" name="Rock5" type="Rock" x="920" y="536">
     <polygon points="0,0 -64,-40 -64,-224 -120,-424 -264,-472 -192,-504 -8,-432"/>
+   </object>
+   <object id="17" name="Rock6" type="Rock" x="730" y="536">
+    <polygon points="0,0 12,-36 6,-66 22,-90 42,-100 58,-94 65,-76 65,0"/>
    </object>
   </objectgroup>
  </group>
