@@ -21,6 +21,11 @@ public class GameMap {
 
     /** Name of the rectangle, in the Player layer, that marks the summit. */
     private static final String SUMMIT_OBJECT = "Summit";
+    /** Map property, set in Tiled, with the seconds a match lasts. */
+    private static final String TIME_LIMIT_PROPERTY = "timeLimit";
+    /** Seconds a match lasts when the map does not set {@value #TIME_LIMIT_PROPERTY}. */
+    private static final float DEFAULT_TIME_LIMIT = 300f;
+
     /** Extent of the fallback summit area, in meters: effectively unbounded. */
     private static final float FAR = 100000f;
 
@@ -45,6 +50,17 @@ public class GameMap {
      */
     public Rectangle getSummitArea() {
         return summitArea;
+    }
+
+    /**
+     * Seconds the match lasts before it is lost: the {@value #TIME_LIMIT_PROPERTY}
+     * property of the map (Map > Map Properties in Tiled), or a default.
+     */
+    public float getTimeLimit() {
+        Object value = map.getProperties().get(TIME_LIMIT_PROPERTY);
+        if (value instanceof Number number && number.floatValue() > 0f)
+            return number.floatValue();
+        return DEFAULT_TIME_LIMIT;
     }
 
     /**

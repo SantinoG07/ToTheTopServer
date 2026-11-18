@@ -39,18 +39,22 @@ Source TODO: `TODO-ToTheTop-Client.md` on the desktop, sections
 
 ## Contract: `STATE` packet
 
-Header `NetworkHeaders.STATE = 0x15`, little endian (`ByteBuffer` default),
+Header `NetworkHeaders.STATE = 0x15`, big endian (`ByteBuffer` default),
 coordinates in world meters, angles in degrees (the client's
 `Character.applyPartState(int partIndex, Vector2 pos, float angleDeg)`).
 
-Common header, 4 bytes:
+Common header, 14 bytes (protocol 4):
 
 | Offset | Size | Field |
 | --- | --- | --- |
 | 0 | 1 | header, `0x15` |
 | 1 | 1 | `ProtocolVersion.CURRENT` |
-| 2 | 1 | `matchState`: `0` = running |
-| 3 | 1 | `playerCount` |
+| 2 | 1 | `matchState`: `0` = running, `1` = finished |
+| 3 | 1 | `result`: `0` = none, `1` = win, `2` = lose (time ran out) |
+| 4 | 1 | `envMask`: reserved, `0` |
+| 5 | 4 | `timeRemaining` f32, seconds |
+| 9 | 4 | `timeLimit` f32, seconds (map property `timeLimit`) |
+| 13 | 1 | `playerCount` |
 
 Then `playerCount` player blocks, in slot order:
 

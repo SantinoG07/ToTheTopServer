@@ -13,7 +13,8 @@ import java.nio.ByteBuffer;
  * right forearm, right hand, left leg, right leg.
  *
  * <p>Layout: header, protocol version, match state, result, environment mask,
- * player count, then one block per player with its slot, its part count, three
+ * time remaining and time limit (two floats, seconds), player count, then one
+ * block per player with its slot, its part count, three
  * floats per part, the grip mask and the flags byte.
  *
  * <p>The result is only meaningful once the match state says it finished; the
@@ -27,8 +28,9 @@ public final class StatePacket {
 
     public static final byte RESULT_NONE = 0;
     public static final byte RESULT_WIN = 1;
+    public static final byte RESULT_LOSE = 2;
 
-    public static final int HEADER_SIZE = 6;
+    public static final int HEADER_SIZE = 14;
     public static final int PLAYER_HEADER_SIZE = 2;
     public static final int PART_SIZE = 12;             // float x, float y, float angleDegrees
     public static final int PLAYER_TRAILER_SIZE = 2;    // grip mask, flags
@@ -63,8 +65,11 @@ public final class StatePacket {
      * @param matchState {@link #MATCH_RUNNING} or {@link #MATCH_FINISHED}
      * @param result     {@link #RESULT_NONE} while the match runs, the outcome once it ends
      * @param envMask    reserved environment events, zero until they exist
+     * @param timeRemaining seconds left before the match is lost
+     * @param timeLimit     seconds the whole match lasts
      */
-    public static byte[] encode(PlayerState[] players, byte matchState, byte result, byte envMask) {
+    public static byte[] encode(PlayerState[] players, byte matchState, byte result, byte envMask,
+                                float timeRemaining, float timeLimit) {
         if (players == null || players.length == 0)
             return null;
 
@@ -74,6 +79,8 @@ public final class StatePacket {
         buffer.put(matchState);
         buffer.put(result);
         buffer.put(envMask);
+        buffer.putFloat(timeRemaining);
+        buffer.putFloat(timeLimit);
         buffer.put((byte) players.length);
 
         for (PlayerState player : players) {

@@ -8,7 +8,7 @@ package com.TfPSR.ToTheTop.network;
  */
 public final class ProtocolVersion {
 
-    public static final byte CURRENT = 3;
+    public static final byte CURRENT = 4;
 
     private ProtocolVersion() {
     }

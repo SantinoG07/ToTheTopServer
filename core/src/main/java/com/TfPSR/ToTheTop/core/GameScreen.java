@@ -75,6 +75,11 @@ public class GameScreen extends ScreenAdapter {
 
     /** Set once the win is announced: the match stops simulating and sending. */
     private boolean finished;
+    /** Outcome sent once the match is finished: win or lose. */
+    private byte matchResult = StatePacket.RESULT_NONE;
+    /** Seconds the match lasts, from the map, and seconds already played. */
+    private float timeLimit;
+    private float matchTime;
 
     private float accumulator = 0f;
 
@@ -88,6 +93,7 @@ public class GameScreen extends ScreenAdapter {
 
         this.debugRenderer = new Box2DDebugRenderer();
         map = new GameMap("maps/map.tmx");
+        timeLimit = map.getTimeLimit();
         mapRenderer = new OrthogonalTiledMapRenderer(map.getTiledMap(), 1f / Constants.PIXELS_PER_METER);
 
         world = new World(GRAVEDAD, true);
@@ -207,7 +213,7 @@ public class GameScreen extends ScreenAdapter {
         // client can reliably receive the result even when that first datagram
         // is lost.
         if (finished) {
-            sendState(StatePacket.MATCH_FINISHED, StatePacket.RESULT_WIN);
+            sendState(StatePacket.MATCH_FINISHED, matchResult);
             return;
         }
 
@@ -238,7 +244,14 @@ public class GameScreen extends ScreenAdapter {
         // The summit of the route ends the match: one last state announces the
         // win and the tick stops, so nothing else is simulated or sent.
         if (MatchEnd.reachedSummit(headPositions(), map.getSummitArea())) {
-            finishMatch();
+            finishMatch(StatePacket.RESULT_WIN);
+            return;
+        }
+
+        // The time limit loses the match for everyone, the same way.
+        matchTime += delta;
+        if (matchTime >= timeLimit) {
+            finishMatch(StatePacket.RESULT_LOSE);
             return;
         }
 
@@ -256,11 +269,14 @@ public class GameScreen extends ScreenAdapter {
         return heads;
     }
 
-    /** Sends the final state with the win and prevents any further tick. */
-    private void finishMatch() {
+    /** Sends the final state with the outcome and prevents any further tick. */
+    private void finishMatch(byte result) {
         finished = true;
-        System.out.println("Partida terminada: un jugador llego a la cima");
-        sendState(StatePacket.MATCH_FINISHED, StatePacket.RESULT_WIN);
+        matchResult = result;
+        System.out.println(result == StatePacket.RESULT_WIN
+                ? "Partida terminada: un jugador llego a la cima"
+                : "Partida terminada: se acabo el tiempo");
+        sendState(StatePacket.MATCH_FINISHED, result);
     }
 
     /**
@@ -368,7 +384,9 @@ public class GameScreen extends ScreenAdapter {
                 snapshot[index++] = toPlayerState(slot, players[slot]);
         }
 
-        server.broadcastState(StatePacket.encode(snapshot, matchState, result, (byte) 0));
+        float timeRemaining = Math.max(0f, timeLimit - matchTime);
+        server.broadcastState(StatePacket.encode(snapshot, matchState, result, (byte) 0,
+                timeRemaining, timeLimit));
     }
 
     private PlayerState toPlayerState(int slot, Character player) {
