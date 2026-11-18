@@ -14,6 +14,7 @@ import com.TfPSR.ToTheTop.network.PlayerState;
 import com.TfPSR.ToTheTop.network.StatePacket;
 import com.TfPSR.ToTheTop.network.ThreadServer;
 import com.TfPSR.ToTheTop.physics.GameContactListener;
+import com.TfPSR.ToTheTop.physics.ShapeFactory;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.audio.Sound;
@@ -21,6 +22,7 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
 
@@ -33,6 +35,8 @@ public class GameScreen extends ScreenAdapter {
     /** Horizontal gap between the spawn points of consecutive slots, in meters. */
     private static final float SPAWN_SPACING = 1.6f;
     private static final int FIRST_PLAYER_GROUP = 10;
+    /** Thickness of the invisible side walls, in meters: thick enough that nothing tunnels through. */
+    private static final float SIDE_WALL_THICKNESS = 2f;
     private static final float CAMERA_ZOOM = 1.5f;
 
     /** The simulation and the state broadcast both run on this fixed tick. */
@@ -106,6 +110,7 @@ public class GameScreen extends ScreenAdapter {
         world.setContactListener(new GameContactListener());
 
         rocks = new Rocks(map.getSurfaceObjects(), world);
+        createSideWalls(map.getPlayArea());
 
         players = createPlayers();
 
@@ -159,6 +164,24 @@ public class GameScreen extends ScreenAdapter {
         }
 
         return created;
+    }
+
+    /**
+     * Invisible walls on the left and right edges of the play area, so nobody
+     * can leave the level sideways. They have no rock user data, so a hand can
+     * never grab them, and no friction, so a body slides along them.
+     */
+    private void createSideWalls(Rectangle area) {
+        if (area == null)
+            return;
+
+        Vector2 size = new Vector2(SIDE_WALL_THICKNESS, area.height);
+        float centerY = area.y + area.height / 2f;
+        Vector2 left = new Vector2(area.x - SIDE_WALL_THICKNESS / 2f, centerY);
+        Vector2 right = new Vector2(area.x + area.width + SIDE_WALL_THICKNESS / 2f, centerY);
+        for (Vector2 position : new Vector2[]{left, right})
+            ShapeFactory.createRectangle(position, size, 0, BodyDef.BodyType.StaticBody, world,
+                    0, 0f, 0f, false, (short) 0);
     }
 
     /** How many characters this screen is simulating. */

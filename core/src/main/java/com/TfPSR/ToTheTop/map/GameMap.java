@@ -19,6 +19,9 @@ public class GameMap {
     private final MapLayer surfaceLayer;
     private final Rectangle summitArea;
 
+    /** Name of the rectangle, in the Player layer, that bounds the level sideways. */
+    private static final String PLAY_AREA_OBJECT = "PlayArea";
+
     /** Name of the rectangle, in the Player layer, that marks the summit. */
     private static final String SUMMIT_OBJECT = "Summit";
     /** Map property, set in Tiled, with the seconds a match lasts. */
@@ -50,6 +53,20 @@ public class GameMap {
      */
     public Rectangle getSummitArea() {
         return summitArea;
+    }
+
+    /**
+     * Side limits of the level, in meters: the {@value #PLAY_AREA_OBJECT}
+     * rectangle drawn in Tiled, or {@code null} when the map has none. Only its
+     * left and right edges are used.
+     */
+    public Rectangle getPlayArea() {
+        MapObject area = playerLayer.getObjects().get(PLAY_AREA_OBJECT);
+        if (!(area instanceof RectangleMapObject rectangle))
+            return null;
+        Rectangle pixels = rectangle.getRectangle();
+        return new Rectangle(pixels.x / Constants.PIXELS_PER_METER, pixels.y / Constants.PIXELS_PER_METER,
+                pixels.width / Constants.PIXELS_PER_METER, pixels.height / Constants.PIXELS_PER_METER);
     }
 
     /**
