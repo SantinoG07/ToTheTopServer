@@ -31,6 +31,7 @@ public class GameScreen extends ScreenAdapter {
     private static final float CHARACTER_WEIGHT = 80f;
     /** Horizontal gap between the spawn points of consecutive slots, in meters. */
     private static final float SPAWN_SPACING = 1.6f;
+    private static final int FIRST_PLAYER_GROUP = 10;
     private static final float CAMERA_ZOOM = 1.5f;
 
     /** The simulation and the state broadcast both run on this fixed tick. */
@@ -110,6 +111,14 @@ public class GameScreen extends ScreenAdapter {
      * slot the server assigned, so a player keeps its identity for the whole
      * match even if somebody else leaves.
      */
+    /**
+     * Negative Box2D group of a slot: a character never collides with itself
+     * but does with the others. Kept clear of the rocks group (-2).
+     */
+    private static short collisionGroup(int slot) {
+        return (short) -(FIRST_PLAYER_GROUP + slot);
+    }
+
     private Character[] createPlayers() {
         Vector2 spawn = map.getPlayerSpawn();
         Character[] created = new Character[MAX_PLAYERS];
@@ -133,7 +142,8 @@ public class GameScreen extends ScreenAdapter {
             float offsetX = (index - (players - 1) / 2f) * SPAWN_SPACING;
             index++;
             Vector2 position = new Vector2(spawn.x + offsetX, spawn.y);
-            created[slot] = new Character(position, new Vector2(CHARACTER_SIZE), CHARACTER_WEIGHT, world);
+            created[slot] = new Character(position, new Vector2(CHARACTER_SIZE), CHARACTER_WEIGHT, world,
+                    collisionGroup(slot));
         }
 
         return created;
@@ -209,6 +219,10 @@ public class GameScreen extends ScreenAdapter {
             // A slot that is no longer occupied left the match: its body must
             // stop existing, or it would keep colliding with the others.
             if (server != null && !server.isSlotOccupied(slot)) {
+                for (Character other : players) {
+                    if (other != null && other != player)
+                        other.releaseGripsOn(player);
+                }
                 player.dispose();
                 players[slot] = null;
                 paused[slot] = false;

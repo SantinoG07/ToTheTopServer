@@ -1,113 +1,76 @@
 package com.TfPSR.ToTheTop.physics;
 
-import com.TfPSR.ToTheTop.entity.Arm;
-import com.TfPSR.ToTheTop.entity.Character;
+import com.TfPSR.ToTheTop.entity.BodyPart;
 import com.TfPSR.ToTheTop.map.Rocks;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
 
+/**
+ * Tells hands and legs what they touch. A surface is a rock or any body of
+ * another character, so a player can stand on and climb another player exactly
+ * like a rock. Each contact is checked in both directions: when two hands touch,
+ * each one may grab the other.
+ */
 public class GameContactListener implements ContactListener {
 
+    private enum Phase { BEGIN, UPDATE, END }
 
     @Override
     public void beginContact(Contact contact) {
-        Character supported = getCharacter(contact);
-        if (supported != null && getSurface(contact) != null) {
-            supported.addSupport();
-            return;
-        }
-
-        Arm arm = getArm(contact);
-        Body surface = getSurface(contact);
-
-        if (arm == null || surface == null) {
-            return;
-        }
-
-        WorldManifold manifold = contact.getWorldManifold();
-        Vector2 point = manifold.getPoints()[0];
-
-        arm.setSurfaceContact(surface, point);
+        handle(contact, Phase.BEGIN);
     }
 
     @Override
     public void endContact(Contact contact) {
-        Character supported = getCharacter(contact);
-        if (supported != null && getSurface(contact) != null) {
-            supported.removeSupport();
-            return;
-        }
-
-        Arm arm = getArm(contact);
-        Body surface = getSurface(contact);
-
-        if (arm == null || surface == null) {
-            return;
-        }
-
-        arm.clearSurfaceContact(surface);
-    }
-
-    /** The character whose leg touches the contact, or null for other bodies. */
-    private Character getCharacter(Contact contact) {
-        Object dataA = contact.getFixtureA().getBody().getUserData();
-        Object dataB = contact.getFixtureB().getBody().getUserData();
-
-        if (dataA instanceof Character character)
-            return character;
-
-        if (dataB instanceof Character character)
-            return character;
-
-        return null;
-    }
-
-    private Arm getArm(Contact contact) {        Object dataA = contact.getFixtureA().getBody().getUserData();
-        Object dataB = contact.getFixtureB().getBody().getUserData();
-
-        if(dataA instanceof Arm) {
-            return (Arm) dataA;
-        }
-
-        if(dataB instanceof Arm) {
-            return (Arm) dataB;
-        }
-
-        return null;
-    }
-
-    private Body getSurface(Contact contact) {
-        Body bodyA = contact.getFixtureA().getBody();
-        Body bodyB = contact.getFixtureB().getBody();
-
-        if (bodyA.getUserData() instanceof Rocks) {
-            return bodyA;
-        }
-
-        if (bodyB.getUserData() instanceof Rocks) {
-            return bodyB;
-        }
-
-        return null;
+        handle(contact, Phase.END);
     }
 
     @Override
     public void preSolve(Contact contact, Manifold oldManifold) {
-        Arm arm = getArm(contact);
-        Body surface = getSurface(contact);
-
-        if (arm == null || surface == null) {
-            return;
-        }
-
-        WorldManifold manifold = contact.getWorldManifold();
-        Vector2 point = manifold.getPoints()[0];
-
-        arm.updateSurfaceContact(surface, point);
+        handle(contact, Phase.UPDATE);
     }
 
     @Override
     public void postSolve(Contact contact, ContactImpulse impulse) {
+    }
 
+    private void handle(Contact contact, Phase phase) {
+        Body bodyA = contact.getFixtureA().getBody();
+        Body bodyB = contact.getFixtureB().getBody();
+        handleSide(contact, phase, bodyA, bodyB);
+        handleSide(contact, phase, bodyB, bodyA);
+    }
+
+    /** Applies the contact to {@code self} if it is a hand or a leg touching a surface. */
+    private void handleSide(Contact contact, Phase phase, Body self, Body other) {
+        if (!(self.getUserData() instanceof BodyPart part) || !isSurfaceFor(other, part))
+            return;
+
+        if (part.leg()) {
+            if (phase == Phase.BEGIN)
+                part.owner().addSupport();
+            else if (phase == Phase.END)
+                part.owner().removeSupport();
+        }
+
+        if (part.arm() != null) {
+            switch (phase) {
+                case BEGIN -> part.arm().setSurfaceContact(other, contactPoint(contact));
+                case UPDATE -> part.arm().updateSurfaceContact(other, contactPoint(contact));
+                case END -> part.arm().clearSurfaceContact(other);
+            }
+        }
+    }
+
+    /** A rock, or a body of a character other than the one touching it. */
+    private boolean isSurfaceFor(Body body, BodyPart toucher) {
+        Object data = body.getUserData();
+        if (data instanceof Rocks)
+            return true;
+        return data instanceof BodyPart part && part.owner() != toucher.owner();
+    }
+
+    private Vector2 contactPoint(Contact contact) {
+        return contact.getWorldManifold().getPoints()[0];
     }
 }

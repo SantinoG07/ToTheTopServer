@@ -128,9 +128,6 @@ public class Arm {
         forearm = ShapeFactory.createRectangle(forearmPosition, forearmSize, angle, type, world, forearmDensity, friction, restitution, false, groupIndex);
         hand = ShapeFactory.createRectangle(handPosition, handSize, angle, type, world, handDensity, friction, restitution, false, groupIndex);
 
-        upperArm.setUserData(null);
-        forearm.setUserData(null);
-        hand.setUserData(this);
 
         Vector2 armElbowAnchor = new Vector2(0, - (armSize.y / 2));
         Vector2 forearmElbowAnchor = new Vector2(0, (forearmSize.y / 2));
@@ -363,6 +360,28 @@ public class Arm {
 
     public Body getHand() {
         return hand;
+    }
+
+    /**
+     * Applies {@code force} to the gripped body at the grip point, if the hand
+     * holds a movable body (another player). A rock is static and ignores it.
+     */
+    public void pushGrip(Vector2 force) {
+        if (state != ArmState.GRABBING)
+            return;
+
+        Body gripped = gripJoint.getBodyB();
+        if (gripped.getType() == BodyDef.BodyType.DynamicBody)
+            gripped.applyForce(force, gripJoint.getAnchorB(), true);
+    }
+
+    /** Lets go if the hand is holding a body of {@code owner}. */
+    public void releaseIfHolding(Character owner, World world) {
+        if (state != ArmState.GRABBING)
+            return;
+
+        if (gripJoint.getBodyB().getUserData() instanceof BodyPart part && part.owner() == owner)
+            release(world);
     }
 
     /** True while the hand is held to the surface it grabbed. */

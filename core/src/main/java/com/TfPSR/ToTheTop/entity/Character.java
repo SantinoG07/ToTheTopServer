@@ -87,7 +87,11 @@ public class Character {
     private final Body leftLeg;
     private final Body rightLeg;
 
-    private final short groupIndex = -1;
+    /**
+     * Negative collision group of this character: its own bodies never collide
+     * with each other, while bodies of other characters (other groups) do.
+     */
+    private final short groupIndex;
 
     /** Leg contacts with a surface; above zero the character is standing on one. */
     private int supportContacts;
@@ -99,8 +103,11 @@ public class Character {
     private final Vector2 liftVelocity = new Vector2();
     private final Vector2 liftForce = new Vector2();
     private final Vector2 liftTarget = new Vector2();
+    private final Vector2 swingForce = new Vector2();
+    private final Vector2 reactionForce = new Vector2();
 
-    public Character(Vector2 position, Vector2 size, float weight, World world) {
+    public Character(Vector2 position, Vector2 size, float weight, World world, short groupIndex) {
+        this.groupIndex = groupIndex;
         this.position = position;
 
         Vector2 headSize = new Vector2(size.x * HEAD_WIDTH_RATIO, size.y * HEAD_HEIGHT_RATIO);
@@ -136,10 +143,6 @@ public class Character {
         this.leftLeg = ShapeFactory.createRectangle(leftLegPosition, legsSize, 0, BodyDef.BodyType.DynamicBody, world, legsDensity, 1f, 0, false, groupIndex);
         this.rightLeg = ShapeFactory.createRectangle(rightLegPosition, legsSize, 0, BodyDef.BodyType.DynamicBody, world, legsDensity, 1f, 0, false, groupIndex);
 
-        // The contact listener identifies the legs of this character by their
-        // user data, to know whether it is resting on a surface.
-        leftLeg.setUserData(this);
-        rightLeg.setUserData(this);
 
         Vector2 torsoNeckAnchor = new Vector2(0, (torsoSize.y / 2));
         Vector2 headNeckAnchor = new Vector2(0, - (headSize.y / 2));
@@ -173,6 +176,15 @@ public class Character {
             rightLeg
         };
 
+        // The contact listener identifies every body by its user data: which
+        // character owns it, whether it is a hand (to grab) or a leg (to stand).
+        for (Body part : parts)
+            part.setUserData(new BodyPart(this, null, false));
+        leftArm.getHand().setUserData(new BodyPart(this, leftArm, false));
+        rightArm.getHand().setUserData(new BodyPart(this, rightArm, false));
+        leftLeg.setUserData(new BodyPart(this, null, true));
+        rightLeg.setUserData(new BodyPart(this, null, true));
+
         float mass = 0f;
         for (Body part : parts)
             mass += part.getMass();
@@ -195,6 +207,16 @@ public class Character {
     /** True while either hand is latched to a surface. */
     public boolean isGripping() {
         return leftArm.isGrabbing() || rightArm.isGrabbing();
+    }
+
+    /**
+     * Lets go of every grip this character holds on {@code other}. Must run
+     * before {@code other} is destroyed: Box2D destroys the grip joints with its
+     * bodies, and the arms would keep pointing at freed native joints.
+     */
+    public void releaseGripsOn(Character other) {
+        leftArm.releaseIfHolding(other, world);
+        rightArm.releaseIfHolding(other, world);
     }
 
     /** Called by the contact listener when a leg starts touching a surface. */
@@ -304,7 +326,7 @@ public class Character {
         if (swingLeft || swingRight) {
             if (isGripping()) {
                 float direction = (swingRight ? 1f : 0f) - (swingLeft ? 1f : 0f);
-                torso.applyForceToCenter(direction * SWING_FORCE, 0, true);
+                applyClimbingForce(swingForce.set(direction * SWING_FORCE, 0f));
             }
         }
     }
@@ -331,7 +353,25 @@ public class Character {
         float forceY = (liftVelocity.y - velocity.y) * gain - bodyMass * world.getGravity().y;
 
         liftForce.set(forceX, forceY).limit(bodyMass * world.getGravity().len() * LIFT_MAX_WEIGHT_FACTOR);
-        torso.applyForceToCenter(liftForce, true);
+        applyClimbingForce(liftForce);
+    }
+
+    /**
+     * Pushes the torso and the gripped bodies back with the same force, split
+     * between the gripping hands (action and reaction). Against a rock the
+     * reaction does nothing; against another player it pulls them instead of
+     * dragging both through the air, so two players can never fly together.
+     */
+    private void applyClimbingForce(Vector2 force) {
+        torso.applyForceToCenter(force, true);
+
+        int grips = (leftArm.isGrabbing() ? 1 : 0) + (rightArm.isGrabbing() ? 1 : 0);
+        if (grips == 0)
+            return;
+
+        reactionForce.set(force).scl(-1f / grips);
+        leftArm.pushGrip(reactionForce);
+        rightArm.pushGrip(reactionForce);
     }
 
     /**
