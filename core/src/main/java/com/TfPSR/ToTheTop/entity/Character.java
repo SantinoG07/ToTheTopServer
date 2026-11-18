@@ -43,8 +43,18 @@ public class Character {
     /** Torso share the impulse was tuned with; keeps the jump height after the rebalance. */
     private static final float IMPULSE_MASS_RATIO = 0.5f;
 
-    /** Lateral push applied to the torso by A/D while a hand is gripping. */
-    private static final float SWING_FORCE = 400f;
+    /**
+     * Wiki 3.7.5: A/D swing the hanging body like a child on a swing. The push
+     * is a small share of the weight and grows while the key is held, so
+     * alternating keys in rhythm with the pendulum builds momentum gently.
+     */
+    private static final float SWING_WEIGHT_FACTOR = 0.15f;
+
+    /** Seconds a held swing key takes to reach the full push. */
+    private static final float SWING_RAMP_TIME = 0.5f;
+
+    /** Above this sideways speed (m/s) the push stops, so the swing cannot grow without end. */
+    private static final float MAX_SWING_SPEED = 4f;
 
     /** Vertical take-off speed of the impulse of wiki 3.7.4, in m/s. */
     private static final float IMPULSE_SPEED = 2.2f;
@@ -104,6 +114,10 @@ public class Character {
     private final Vector2 liftForce = new Vector2();
     private final Vector2 liftTarget = new Vector2();
     private final Vector2 swingForce = new Vector2();
+    /** Seconds the current swing key has been held, capped at the ramp time. */
+    private float swingHeldTime;
+    /** Direction of the last swing tick: -1 left, 1 right, 0 none. */
+    private float swingDirection;
     private final Vector2 reactionForce = new Vector2();
 
     public Character(Vector2 position, Vector2 size, float weight, World world, short groupIndex) {
@@ -247,7 +261,6 @@ public class Character {
     public boolean impulse() {
         if (!isResting() || isGripping())
             return false;
-
         Vector2 center = torso.getWorldCenter();
         torso.applyLinearImpulse(0f, IMPULSE_SPEED * bodyMass * IMPULSE_MASS_RATIO,
                 center.x, center.y, true);
@@ -321,14 +334,32 @@ public class Character {
             liftVelocity.setZero();
         }
 
-        // Wiki 3.7.5: A/D push the torso sideways, and only while a hand holds
-        // a surface. Both keys cancel out.
-        if (swingLeft || swingRight) {
-            if (isGripping()) {
-                float direction = (swingRight ? 1f : 0f) - (swingLeft ? 1f : 0f);
-                applyClimbingForce(swingForce.set(direction * SWING_FORCE, 0f));
-            }
+        applySwing(swingLeft, swingRight, step);
+    }
+
+    /**
+     * Pushes the hanging torso sideways while A or D is held (both cancel out).
+     * Only with a grip, ramped in over {@link #SWING_RAMP_TIME} and stopped once
+     * the torso already moves fast enough that way.
+     */
+    private void applySwing(boolean swingLeft, boolean swingRight, float step) {
+        float direction = (swingRight ? 1f : 0f) - (swingLeft ? 1f : 0f);
+        if (direction != swingDirection)
+            swingHeldTime = 0f;
+        swingDirection = direction;
+
+        if (direction == 0f || !isGripping()) {
+            swingHeldTime = 0f;
+            return;
         }
+
+        swingHeldTime = Math.min(SWING_RAMP_TIME, swingHeldTime + step);
+        if (torso.getLinearVelocity().x * direction >= MAX_SWING_SPEED)
+            return;
+
+        float push = bodyMass * world.getGravity().len() * SWING_WEIGHT_FACTOR
+                * (swingHeldTime / SWING_RAMP_TIME);
+        applyClimbingForce(swingForce.set(direction * push, 0f));
     }
 
     /**
