@@ -56,6 +56,9 @@ public class Character {
     /** Above this sideways speed (m/s) the push stops, so the swing cannot grow without end. */
     private static final float MAX_SWING_SPEED = 4f;
 
+    /** Seconds between two impulses, so the character cannot hop its way along. */
+    private static final float IMPULSE_COOLDOWN = 2f;
+
     /** Vertical take-off speed of the impulse of wiki 3.7.4, in m/s. */
     private static final float IMPULSE_SPEED = 2.2f;
 
@@ -118,6 +121,8 @@ public class Character {
     private float swingHeldTime;
     /** Direction of the last swing tick: -1 left, 1 right, 0 none. */
     private float swingDirection;
+    /** Seconds left before the next impulse is allowed. */
+    private float impulseCooldown;
     private final Vector2 reactionForce = new Vector2();
 
     public Character(Vector2 position, Vector2 size, float weight, World world, short groupIndex) {
@@ -254,13 +259,16 @@ public class Character {
 
     /**
      * Wiki 3.7.4: a small jump, driven from the torso. It is only allowed while
-     * the character rests on a surface, never while hanging or falling.
+     * the character rests on a surface, never while hanging or falling, and
+     * once every {@link #IMPULSE_COOLDOWN} seconds.
      *
      * @return true when the impulse was applied
      */
     public boolean impulse() {
-        if (!isResting() || isGripping())
+        if (!isResting() || isGripping() || impulseCooldown > 0f)
             return false;
+
+        impulseCooldown = IMPULSE_COOLDOWN;
         Vector2 center = torso.getWorldCenter();
         torso.applyLinearImpulse(0f, IMPULSE_SPEED * bodyMass * IMPULSE_MASS_RATIO,
                 center.x, center.y, true);
@@ -334,6 +342,7 @@ public class Character {
             liftVelocity.setZero();
         }
 
+        impulseCooldown = Math.max(0f, impulseCooldown - step);
         applySwing(swingLeft, swingRight, step);
     }
 
