@@ -209,7 +209,9 @@ public class Arm {
         }
 
         // Only a rock the hand touches right now, at a point on the hand itself.
-        if (contactedSurface == null || hand.getPosition().dst(contactPoint) > gripTolerance) {
+        // A broken (inactive) rock cannot be grabbed even if a stale contact remains.
+        if (contactedSurface == null || !contactedSurface.isActive()
+                || hand.getPosition().dst(contactPoint) > gripTolerance) {
             return;
         }
 
@@ -373,6 +375,17 @@ public class Arm {
         Body gripped = gripJoint.getBodyB();
         if (gripped.getType() == BodyDef.BodyType.DynamicBody)
             gripped.applyForce(force, gripJoint.getAnchorB(), true);
+    }
+
+    /** True while the hand holds that exact body. */
+    public boolean isHolding(Body body) {
+        return state == ArmState.GRABBING && gripJoint.getBodyB() == body;
+    }
+
+    /** Lets go if the hand holds that exact body. */
+    public void releaseIfHolding(Body body, World world) {
+        if (isHolding(body))
+            release(world);
     }
 
     /** Lets go if the hand is holding a body of {@code owner}. */

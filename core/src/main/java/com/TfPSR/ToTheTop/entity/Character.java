@@ -255,6 +255,17 @@ public class Character {
         rightArm.releaseIfHolding(other, world);
     }
 
+    /** True when either hand holds that body. */
+    public boolean isHolding(Body body) {
+        return leftArm.isHolding(body) || rightArm.isHolding(body);
+    }
+
+    /** Lets go of that body with any hand that holds it. */
+    public void releaseGripsOn(Body body) {
+        leftArm.releaseIfHolding(body, world);
+        rightArm.releaseIfHolding(body, world);
+    }
+
     /** Called by the contact listener when a leg starts touching a surface. */
     public void addSupport() {
         supportContacts++;

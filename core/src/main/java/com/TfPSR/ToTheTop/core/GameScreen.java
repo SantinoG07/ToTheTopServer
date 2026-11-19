@@ -5,6 +5,7 @@ import com.TfPSR.ToTheTop.asset.AssetService;
 import com.TfPSR.ToTheTop.asset.SoundAsset;
 import com.TfPSR.ToTheTop.entity.Character;
 import com.TfPSR.ToTheTop.map.GameMap;
+import com.TfPSR.ToTheTop.map.BreakableRock;
 import com.TfPSR.ToTheTop.map.Rocks;
 import com.TfPSR.ToTheTop.menus.MainMenu;
 import com.TfPSR.ToTheTop.network.InputPacket;
@@ -184,6 +185,30 @@ public class GameScreen extends ScreenAdapter {
                     0, 0f, 0f, false, (short) 0);
     }
 
+    /**
+     * Wears the breakable rocks that are touched or held, breaks the worn-out
+     * ones and brings back the broken ones once their place is free. Runs after
+     * the physics step, never inside it, because it changes bodies and joints.
+     */
+    private void updateBreakableRocks(float delta) {
+        for (BreakableRock rock : rocks.getBreakables()) {
+            boolean gripped = false;
+            for (Character player : players) {
+                if (player != null && player.isHolding(rock.getBody()))
+                    gripped = true;
+            }
+
+            if (rock.update(delta, gripped)) {
+                for (Character player : players) {
+                    if (player != null)
+                        player.releaseGripsOn(rock.getBody());
+                }
+                rock.shatter();
+            }
+            rock.respawnIfReady(world);
+        }
+    }
+
     /** How many characters this screen is simulating. */
     public int getPlayerCount() {
         int count = 0;
@@ -277,6 +302,7 @@ public class GameScreen extends ScreenAdapter {
         }
 
         world.step(delta, 10, 4);
+        updateBreakableRocks(delta);
 
         // The summit of the route ends the match: one last state announces the
         // win and the tick stops, so nothing else is simulated or sent.
@@ -425,7 +451,7 @@ public class GameScreen extends ScreenAdapter {
 
         float timeRemaining = Math.max(0f, timeLimit - matchTime);
         server.broadcastState(StatePacket.encode(snapshot, matchState, result, (byte) 0,
-                timeRemaining, timeLimit));
+                timeRemaining, timeLimit, rocks.breakableStates()));
     }
 
     private PlayerState toPlayerState(int slot, Character player) {

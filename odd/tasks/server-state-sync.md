@@ -66,6 +66,9 @@ Then `playerCount` player blocks, in slot order:
 | … | 1 | `gripMask`: bit 0 left hand gripped, bit 1 right hand gripped |
 | … | 1 | `flags`: bit 0 unconscious |
 
+After the player blocks (protocol 6): `breakableCount` (1 byte), then one byte per
+breakable rock in map order: wear `0..200`, or `255` while broken.
+
 Part order, top to bottom:
 
 | Index | Part | Index | Part |

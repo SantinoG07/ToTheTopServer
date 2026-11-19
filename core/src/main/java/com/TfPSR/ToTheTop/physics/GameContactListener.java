@@ -1,6 +1,7 @@
 package com.TfPSR.ToTheTop.physics;
 
 import com.TfPSR.ToTheTop.entity.BodyPart;
+import com.TfPSR.ToTheTop.map.BreakableRock;
 import com.TfPSR.ToTheTop.map.Rocks;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
@@ -39,6 +40,18 @@ public class GameContactListener implements ContactListener {
         Body bodyB = contact.getFixtureB().getBody();
         handleSide(contact, phase, bodyA, bodyB);
         handleSide(contact, phase, bodyB, bodyA);
+        countBreakableTouch(phase, bodyA, bodyB);
+        countBreakableTouch(phase, bodyB, bodyA);
+    }
+
+    /** A breakable rock wears while any character body touches it. */
+    private void countBreakableTouch(Phase phase, Body rock, Body other) {
+        if (!(rock.getUserData() instanceof BreakableRock breakable) || !(other.getUserData() instanceof BodyPart))
+            return;
+        if (phase == Phase.BEGIN)
+            breakable.addTouch();
+        else if (phase == Phase.END)
+            breakable.removeTouch();
     }
 
     /** Applies the contact to {@code self} if it is a hand or a leg touching a surface. */
@@ -62,10 +75,10 @@ public class GameContactListener implements ContactListener {
         }
     }
 
-    /** A rock, or a body of a character other than the one touching it. */
+    /** A rock (breakable or not), or a body of a character other than the one touching it. */
     private boolean isSurfaceFor(Body body, BodyPart toucher) {
         Object data = body.getUserData();
-        if (data instanceof Rocks)
+        if (data instanceof Rocks || data instanceof BreakableRock)
             return true;
         return data instanceof BodyPart part && part.owner() != toucher.owner();
     }

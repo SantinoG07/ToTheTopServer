@@ -14,7 +14,8 @@ import java.nio.ByteBuffer;
  *
  * <p>Layout: header, protocol version, match state, result, environment mask,
  * time remaining and time limit (two floats, seconds), player count, then one
- * block per player with its slot, its part count, three
+ * block per player, then the breakable rocks: their count and one byte each
+ * (wear 0..200, or 255 while broken), in map order with its slot, its part count, three
  * floats per part, the grip mask and the flags byte.
  *
  * <p>The result is only meaningful once the match state says it finished; the
@@ -43,8 +44,8 @@ public final class StatePacket {
     }
 
     /** Exact size in bytes of the packet {@link #encode} would produce. */
-    public static int size(PlayerState[] players) {
-        int total = HEADER_SIZE;
+    public static int size(PlayerState[] players, byte[] breakables) {
+        int total = HEADER_SIZE + 1 + (breakables == null ? 0 : breakables.length);
         if (players == null)
             return total;
 
@@ -67,13 +68,14 @@ public final class StatePacket {
      * @param envMask    reserved environment events, zero until they exist
      * @param timeRemaining seconds left before the match is lost
      * @param timeLimit     seconds the whole match lasts
+     * @param breakables    state byte of every breakable rock, in map order
      */
     public static byte[] encode(PlayerState[] players, byte matchState, byte result, byte envMask,
-                                float timeRemaining, float timeLimit) {
+                                float timeRemaining, float timeLimit, byte[] breakables) {
         if (players == null || players.length == 0)
             return null;
 
-        ByteBuffer buffer = ByteBuffer.allocate(size(players));
+        ByteBuffer buffer = ByteBuffer.allocate(size(players, breakables));
         buffer.put(NetworkHeaders.STATE);
         buffer.put(ProtocolVersion.CURRENT);
         buffer.put(matchState);
@@ -97,6 +99,11 @@ public final class StatePacket {
             buffer.put((byte) gripMask(player));
             buffer.put((byte) flags(player));
         }
+
+        int breakableCount = breakables == null ? 0 : breakables.length;
+        buffer.put((byte) breakableCount);
+        if (breakableCount > 0)
+            buffer.put(breakables);
 
         return buffer.array();
     }

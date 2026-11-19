@@ -7,15 +7,22 @@ import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.maps.MapObject;
 import com.badlogic.gdx.maps.MapObjects;
 import com.badlogic.gdx.maps.objects.PolygonMapObject;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef;
 import com.badlogic.gdx.physics.box2d.World;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class Rocks {
+    /** Tiled type of the rocks that crumble when held too long. */
+    private static final String BREAKABLE_TYPE = "Breakable";
+
     ArrayList<Body> rocksBodies = new ArrayList<>();
+    /** Breakable rocks in map order; the STATE packet sends them in this order. */
+    private final List<BreakableRock> breakables = new ArrayList<>();
 
 
 
@@ -79,9 +86,36 @@ public class Rocks {
                 (short) -2
             );
 
-            body.setUserData(this);
+            if (isBreakable(rock)) {
+                BreakableRock breakable = new BreakableRock(body,
+                        new Rectangle(minX, minY, maxX - minX, maxY - minY));
+                body.setUserData(breakable);
+                breakables.add(breakable);
+            } else {
+                body.setUserData(this);
+            }
             rocksBodies.add(body);
         }
+    }
+
+    /** Tiled stores the object type as "type" or, in newer versions, as "class". */
+    static boolean isBreakable(MapObject rock) {
+        Object type = rock.getProperties().get("type");
+        if (type == null)
+            type = rock.getProperties().get("class");
+        return BREAKABLE_TYPE.equals(type);
+    }
+
+    public List<BreakableRock> getBreakables() {
+        return breakables;
+    }
+
+    /** State byte of every breakable rock, in map order, for the STATE packet. */
+    public byte[] breakableStates() {
+        byte[] states = new byte[breakables.size()];
+        for (int i = 0; i < states.length; i++)
+            states[i] = (byte) breakables.get(i).wireState();
+        return states;
     }
 
 }
