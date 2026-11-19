@@ -6,6 +6,35 @@ to Semantic Versioning.
 
 ---
 
+## [1.0.0] - 2026-11-19
+
+This release also contains the authoritative networking work merged after 0.6.0;
+see the git history for it.
+
+### Added
+
+* Added climbing by pull-up: dragging the free hand past its reach lifts the body, held by a rope from the shoulder to the grip point.
+* Added collisions between players: a player can stand on and climb another one like a rock, and climbing pulls the other player instead of dragging both through the air.
+* Added an impulse cooldown (2 s) and aiming with WASD; the impulse is stronger and pushes only the torso (protocol 3).
+* Added a soft, ramped swing with A/D while hanging.
+* Added the `Summit` area of the map as the win condition and a time limit (map property `timeLimit`) that loses the match (protocol 4).
+* Added room phases: after a match every player can return to the waiting room and play again without restarting the server; the host passes to the player who joined first when it leaves (protocol 5).
+* Added invisible side walls from the map `PlayArea`.
+* Added breakable rocks that crumble after 5 s of contact and come back 5 s later (protocol 6).
+* Added the `syncMap` Gradle task: the map is copied from the client repository before every build.
+
+### Changed
+
+* Rebalanced the body masses (hand to torso from 1:50 to about 1:8.5) and rocks are now solid triangulated polygons, so limbs cannot get trapped inside them.
+
+### Fixed
+
+* Fixed the hands shaking and flying around while dragging (unstable controller and wrong arm masses).
+* Fixed the ragdoll exploding on falls and when grabbing a point the hand no longer touched; a grip pulled too hard now slips.
+* Fixed the server never returning to the lobby after a match and never freeing the Box2D world.
+
+---
+
 ## [0.6.0] - 2026-09-04
 
 ### Added
